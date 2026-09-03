@@ -355,27 +355,27 @@ Hello/ready 握手包含 scenario/protocol/simulation/peer identity；relay 只�
 - 消费: real `Trace` and artifacts from Tasks 5-6。
 - 产出: `write_viewer(trace,path)` and checked-in reproducible portfolio artifacts。
 
-- [ ] **Step 1: 写 viewer generation RED**
+- [x] **Step 1: 写 viewer generation RED**
 
 测试 sample viewer 自包含、无 CDN/http imports、内嵌 trace identity 匹配 source trace、必需 control/metric/marker IDs 存在、HTML escaping 正确、trace size under documented bound。
 
-- [ ] **Step 2: 运行 RED**
+- [x] **Step 2: 运行 RED**
 
 运行: `ctest --preset msvc-debug -R viewer --output-on-failure`，预期缺少 generator/template 而 FAIL。
 
-- [ ] **Step 3: 最小 GREEN viewer**
+- [x] **Step 3: 最小 GREEN viewer**
 
 canvas/SVG 绘制双方和 projectile；range scrubber；play/pause；step ±1；frame/HP/score/hash；predicted/confirmed shading；rollback range；drop/delay/reorder/duplicate markers；desync marker；responsive and reduced-motion CSS。数据只来自嵌入的 production trace。
 
-- [ ] **Step 4: 生成 samples 和完整文档**
+- [x] **Step 4: 生成 samples 和完整文档**
 
 用 final CLI commands 生成而非手写 sample data。Interview Guide 覆盖目标列出的 16 个主题；Live Change Drills 至少 12 个；AI Assistance 准确写明用户目标/边界与 Codex GPT-5.6 Sol 实现责任以及用户未手写代码。
 
-- [ ] **Step 5: 浏览器 QA**
+- [x] **Step 5: 浏览器 QA**
 
 通过浏览器打开 `sample-viewer.html`：检查 console 0 error；拖动 scrubber；step/play；比较 rollback markers 与 trace；检查 1440x900 和 390x844；保存可提交 screenshot。运行 full CTest。
 
-- [ ] **Step 6: 证据与提交**
+- [x] **Step 6: 证据与提交**
 
 保存 browser observations/screenshots/checksums，提交 `docs: add interactive rollback timeline and portfolio guide`。
 

@@ -13,8 +13,8 @@
 | V-042 | Canonical JSON/trace stable schema and bounds | report tests and schema inspection | Passed at `4e4b1c3`; final artifacts pending PACT-60 |
 | V-050 | Real relay plus two independent peer processes | UDP integration suite and `udp-demo` report | Passed at `26721d0`; final-head rerun pending |
 | V-051 | Timeout, mismatch, port conflict, child reap | negative UDP integration tests | Passed at `26721d0`; 20-run stress left 0 children |
-| V-060 | Real-trace self-contained viewer | browser console/interaction/responsive QA and screenshot | Pending |
-| V-061 | Sample report/replay/trace/viewer | checksummed files under `samples/` and `viewer/` | Pending |
+| V-060 | Real-trace self-contained viewer | browser console/interaction/responsive QA and screenshot | Passed from `42842de`; final-head regeneration pending |
+| V-061 | Sample report/replay/trace/viewer | checksummed files under `samples/` and `viewer/` | Passed from `42842de`; committed artifact check pending |
 | V-070 | 10,000 bounded seeds | property-sweep report with exact success/failure counts | Pending |
 | V-071 | MSVC Debug and Release | configure/build/CTest logs | Pending |
 | V-072 | Clang or GCC | configure/build/CTest logs | Pending |

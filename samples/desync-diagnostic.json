@@ -1,0 +1,10 @@
+{
+  "earliest_divergent_frame":1,
+  "local_hash":"0xFAC1D8C8DA722131",
+  "remote_hash":"0x9C497063319DE734",
+  "recent_inputs":[{"frame":0,"a":16,"b":0}],
+  "state_summary":{"players":[{"id":"A","x":102400,"y":102400,"hp":100,"score":0},{"id":"B","x":143360,"y":102400,"hp":75,"score":0}],"active_projectiles":0},
+  "simulation_version":1,
+  "protocol_version":1,
+  "scenario_seed":13851260
+}
