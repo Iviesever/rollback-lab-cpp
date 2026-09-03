@@ -312,29 +312,29 @@ Result<int> run_peer(const PeerConfig& config);
 Result<UdpDemoResult> run_udp_demo(const UdpDemoConfig& config);
 ```
 
-- [ ] **Step 1: 写 UDP RED integration tests**
+- [x] **Step 1: 写 UDP RED integration tests**
 
 正常场景断言两个 peer 是不同 PID、opaque relay、confirmed target、equal hash/input logs、replay success、zero exits、all children reaped。负向覆盖 reserved-port conflict、peer missing timeout、protocol mismatch、child abnormal exit。
 
-- [ ] **Step 2: 运行 RED**
+- [x] **Step 2: 运行 RED**
 
 运行: `cmake --build --preset msvc-debug; ctest --preset msvc-debug -R "udp" --output-on-failure`
 
 预期: FAIL 于缺少 process/socket/commands，不使用 long sleep。
 
-- [ ] **Step 3: socket/process GREEN**
+- [x] **Step 3: socket/process GREEN**
 
 Windows 使用 scoped `WSAStartup`, nonblocking/select-or-poll socket, `CreateProcessW`, job object 或显式 terminate/wait/CloseHandle；POSIX 使用 BSD socket, poll, fork/exec 或 posix_spawn, waitpid/kill。随机端口由 bind port 0 获取并在启动协议中校验。
 
-- [ ] **Step 4: relay/peer/demo GREEN**
+- [x] **Step 4: relay/peer/demo GREEN**
 
 Hello/ready 握手包含 scenario/protocol/simulation/peer identity；relay 只看 routing envelope，不 decode state；peer 以 wall clock 调度 packet I/O，但 canonical tick 仅消费 inputs；supervisor 以 bounded poll 管理 watchdog 和 teardown。
 
-- [ ] **Step 5: 稳定性回归**
+- [x] **Step 5: 稳定性回归**
 
 正常 demo 连续运行至少 20 次；负向 tests 每类至少一次；验证系统无残留 `rollback_lab` child。运行 full CTest。
 
-- [ ] **Step 6: 证据与提交**
+- [x] **Step 6: 证据与提交**
 
 保存 PIDs/ports/exits/reports/replay checks，提交 `feat: verify rollback over localhost udp processes`。
 
