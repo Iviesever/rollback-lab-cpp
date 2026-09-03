@@ -395,7 +395,7 @@ canvas/SVG 绘制双方和 projectile；range scrubber；play/pause；step ±1�
 - 消费: 全部生产 API 和 CLI。
 - 产出: final verification bundle, exact PR body, clean pushed branch, Draft PR。
 
-- [ ] **Step 1: 写 property RED invariant**
+- [x] **Step 1: 写 property RED invariant**
 
 ```cpp
 RL_TEST(property_sweep_10000_seeds_is_bounded_and_repeatable) {
@@ -408,19 +408,19 @@ RL_TEST(property_sweep_10000_seeds_is_bounded_and_repeatable) {
 }
 ```
 
-- [ ] **Step 2: 运行 RED 后最小 GREEN harness**
+- [x] **Step 2: 运行 RED 后最小 GREEN harness**
 
 先确认 test 因缺少 sweep API/target 正确失败；实现 bounded config generation、failure classification、identity digest 和 progress heartbeat，不放宽已有 production limits。
 
-- [ ] **Step 3: Windows compiler matrix**
+- [x] **Step 3: Windows compiler matrix**
 
 运行 MSVC Debug/Release configure/build/CTest、clean rebuild。若 PATH 无 Clang/GCC，则下载官方、version-locked portable LLVM 到项目忽略目录 `.tools/llvm-<version>`，校验 SHA256，不修改系统 PATH，运行 Clang Debug/Release。
 
-- [ ] **Step 4: Sanitizer/fuzz/benchmark**
+- [x] **Step 4: Sanitizer/fuzz/benchmark**
 
 在 portable Clang 支持范围运行 ASan/UBSan；若 Windows runtime 不支持某组合，保留编译器证据和明确限制，不把未运行写成通过。运行 100,000+ fuzz smoke、两个 benchmark、UDP stress、replay/desync samples。
 
-- [ ] **Step 5: 10,000 seeds 与完整审计**
+- [x] **Step 5: 10,000 seeds 与完整审计**
 
 运行 exact 10,000 sweep；重复 identity；`rg` 审计 canonical modules 中 `chrono|random_device|float|double`，审计 peer state copying；核对 30 条 completion conditions；刷新所有受影响 regression。
 

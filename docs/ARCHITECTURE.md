@@ -51,11 +51,10 @@ udp-demo supervisor
   └─ peer B process: local B input + predicted/confirmed A input + private session
 ```
 
-Ports are dynamically reserved on loopback. The relay binds before writing its ready file. Peers validate hello packets for protocol, scenario, and identity, then exchange input packets with a 32-frame redundant window. Completion requires contiguous actual inputs, equal confirmed final hashes, verified replays, zero peer exits, a graceful relay stop, and reaped children.
+Ports are dynamically reserved on loopback. The relay binds before writing its ready file. Peers validate hello packets for protocol version, simulation version, scenario/config digest, target frame, and identity, then exchange 32-input and 32-confirmed-hash windows. Completion requires contiguous actual inputs, equal confirmed final hashes, verified replays, zero peer exits, a graceful relay stop, and reaped children.
 
 ## Resource and failure model
 
 Fallible APIs return `Result<T>` with a stable `ErrorCode`, numeric detail, byte/frame offset, and context. Socket and process handles are move-only RAII objects. Queues, replays, traces, packet sizes, receive loops, handshake time, run time, and final drain are bounded. No thread is detached.
 
 See [DETERMINISM_CONTRACT.md](DETERMINISM_CONTRACT.md), [ROLLBACK_ALGORITHM.md](ROLLBACK_ALGORITHM.md), and [PROTOCOL.md](PROTOCOL.md) for the contracts behind these boundaries.
-

@@ -64,7 +64,7 @@ rollback_lab desync-demo [--out FILE]
 - Two move-only peer sessions with separate worlds, inputs, 256-slot snapshot/history rings, decisions, metrics, and hashes.
 - Last-known remote-input prediction, no-op matching corrections, earliest-dirty rollback, and deterministic resimulation with a 120-frame fail-closed limit.
 - PCG32 seeded latency, jitter, 0/1/5/20% loss, reordering, duplication, burst loss, queue/bandwidth limits, maximum age, and byte-stable repeated reports.
-- Versioned field-by-field little-endian packets, 32-input redundancy, 1,200-byte bound, CRC-32/ISO-HDLC, 64-sequence receive window, exhaustive truncation tests, and a 100,000-input fuzz smoke.
+- Versioned field-by-field little-endian packets, 32-input and 32-hash windows, strict hello contract, 1,200-byte bound, CRC-32/ISO-HDLC, 64-sequence receive window, exhaustive truncation tests, and a structured 100,000-input packet/replay fuzz smoke.
 - Versioned confirmed-input replay with checkpoint/final hash verification.
 - Confirmed-only desync detection with a controlled frame-1 logic divergence and a minimal [diagnostic](samples/desync-diagnostic.json).
 - Actual Winsock/BSD datagrams through an opaque relay and two independent peer processes, dynamic ports, watchdogs, symmetric completion, verified peer artifacts, and child reap.
@@ -75,7 +75,7 @@ The sample 240-frame run uses 5-tick latency, 3-tick jitter, 5% packet loss, 10%
 | --- | ---: |
 | Sent / delivered / dropped packets | 608 / 594 / 44 |
 | Duplicated / reordered packets | 30 / 64 |
-| Rollbacks / resimulated frames / max depth | 189 / 1,044 / 10 |
+| Rollbacks / resimulated frames / max depth | 189 / 857 / 9 |
 | Confirmed boundary | 240 |
 | Final hash A / B | `0x4B35DC3FD8F6009C` / `0x4B35DC3FD8F6009C` |
 | Replay | verified |
@@ -84,7 +84,9 @@ Artifacts: [report JSON](samples/report.json), [binary replay](samples/input.rlr
 
 ## Verification surface
 
-The current suite has 43 focused behavior cases in the production-API runner plus a separate 100,000-input protocol fuzz smoke. PACT-70 adds the required 10,000-seed property run and final MSVC Debug/Release, Clang/GCC, sanitizer, clean-rebuild, replay, UDP, browser, and artifact evidence. Exact final counts and commands live in [TESTING.md](docs/TESTING.md) and the [verification matrix](tasks/20260903-215400-rollback-netcode-0.1/verification_matrix.md).
+The suite has 56 focused production-API behavior cases (22 core/session, 15 protocol/transport, 12 replay/report/CLI/viewer, 7 real UDP), a 100-seed CTest property smoke, and a structured 100,000-input packet/replay fuzz smoke. The full Release sweep runs all 10,000 seeds twice: 9,600 normal scenarios converge and 400 explicit queue-overflow/timeout scenarios return their exact typed failure, with 0 crashes, deadlocks, unbounded failures, or identity mismatches across 0/1/5/20% packet loss.
+
+Fresh local evidence covers MSVC 19.51 Debug/Release, portable Clang 22.1.8 Debug/Release, Clang ASan+UBSan, CMake-managed clean rebuild, 20/20 UDP stress, replay/desync, and real browser QA. Windows LeakSanitizer is unsupported and is not claimed. Exact commands and results live in [TESTING.md](docs/TESTING.md) and the [verification matrix](tasks/20260903-215400-rollback-netcode-0.1/verification_matrix.md).
 
 ## Read the design
 
@@ -108,4 +110,3 @@ This is an educational portfolio laboratory—not production networking, a comme
 The user set the career goal, product direction, boundaries, deadline, and acceptance criteria. Codex GPT-5.6 Sol refined the architecture and produced the code, tests, protocol, UDP path, viewer, documentation, debugging, and packaging. The user did not hand-write delivery code in this session and should not present the project as independently hand-written. Before an interview, complete at least one [live change drill](docs/LIVE_CHANGE_DRILLS.md) personally.
 
 Licensed under [MIT](LICENSE).
-

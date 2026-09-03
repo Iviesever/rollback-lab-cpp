@@ -17,3 +17,4 @@ The session allocates its fixed history/snapshot storage once during constructio
 
 When comparing changes, use the same executable, build type, compiler, machine power state, frame count, and seeds. Report medians across several runs if performance—not mere smoke validity—is under review.
 
+The final-source MSVC Release observation for 100,000 direct ticks was 7,232 µs (13,827,433 ticks/s). The fixed 2,000-frame rollback stress observed 130,030 µs, 1,389 rollbacks, 9,749 resimulated frames, and maximum depth 12. These are one-machine smoke observations, not promises or regression thresholds.

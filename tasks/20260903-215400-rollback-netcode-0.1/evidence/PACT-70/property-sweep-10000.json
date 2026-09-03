@@ -1,0 +1,19 @@
+{
+  "pcg32_version":1,
+  "start_seed":0,
+  "total_seeds":10000,
+  "successful_seeds":9600,
+  "declared_failures":400,
+  "repeated_identity_samples":522,
+  "identity_mismatches":0,
+  "crashes":0,
+  "deadlocks":0,
+  "unbounded_failures":0,
+  "edge_frame_cases":7,
+  "queue_overflow_failures":200,
+  "timeout_failures":200,
+  "loss_rate_scenarios":{"0":2741,"1":2400,"5":2377,"20":2482},
+  "identity_digest":6852576945316271377,
+  "full_sweep_repeated":true,
+  "success":true
+}

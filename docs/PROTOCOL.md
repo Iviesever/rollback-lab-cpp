@@ -15,18 +15,20 @@ Packets are encoded field by field in little-endian order. C++ object layout is 
 | 16 | 8 | Scenario identity |
 | 24 | 4 | Sender confirmed boundary |
 | 28 | 1 | Input record count, 0–32 |
-| 29 | 1 | Flags; bit 0 means confirmed hash present |
+| 29 | 1 | Confirmed hash record count, 0–32 |
 | 30 | 2 | Payload length |
-| 32 | variable | Input records, then optional hash record |
+| 32 | variable | Input records, confirmed hash records, then hello payload when type=hello |
 | end−4 | 4 | CRC-32/ISO-HDLC over all preceding bytes |
 
-Each input record is 10 bytes: frame `u32`, player `u8`, buttons `u8`, sequence `u32`. The optional hash record is boundary `u32` plus hash `u64`.
+Each input record is 10 bytes: frame `u32`, player `u8`, buttons `u8`, sequence `u32`. Each confirmed hash record is boundary `u32` plus hash `u64`. Hashes are strictly increasing and bounded to 32, letting receivers find the earliest overlap mismatch rather than seeing only the latest boundary.
+
+A hello packet has no input/hash records and carries a strict 16-byte payload: simulation version `u32`, scenario/config digest `u64`, and target frame `u32`. Non-hello packets may not carry that payload.
 
 ## Decoder behavior
 
-The decoder validates minimum/maximum size and CRC before constructing a packet. It then validates magic, supported version/type, peer ID, flags, count, exact payload/total length, sender ownership of every input, known button bits, and complete reads. Failure returns a typed status with byte offset/context. Unknown versions and packet types fail closed.
+The decoder validates minimum/maximum size and CRC before constructing a packet. It then validates magic, supported version/type, peer ID, both counts, strictly ordered hashes, hello/type consistency, exact payload/total length, sender ownership of every input, known button bits, and complete reads. Failure returns a typed status with byte offset/context. Unknown versions and packet types fail closed.
 
-Tests cover every truncation boundary, bad magic/version/type/count/length/CRC, oversized input windows, 10,000 random byte strings, and a 100,000-input fuzz smoke over 0–1,200 bytes.
+Tests cover every packet type, every truncation boundary, bad magic/version/type/count/length/CRC, oversized input/hash windows, 10,000 random byte strings, and a 100,000-input fuzz smoke. The fuzz corpus contains 33,334 random packets, 33,333 structured packet mutations, 33,333 structured replay mutations, and 50,000 CRC rewrites that exercise fields beyond the integrity gate.
 
 ## Sequence receive window
 
@@ -37,4 +39,3 @@ Duplicate or stale packets are ignored at the peer boundary. An out-of-order pac
 ## Integrity and security
 
 CRC-32/ISO-HDLC detects accidental corruption only. It provides no authentication, secrecy, replay protection against an attacker, or anti-cheat guarantee. The project deliberately has no cryptographic or public-network threat model.
-
