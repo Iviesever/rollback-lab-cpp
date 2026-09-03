@@ -12,6 +12,7 @@ option(ROLLBACK_LAB_BUILD_BENCHMARKS "Build rollback-lab benchmarks" ON)
 add_library(rollback_lab STATIC
     src/version.cpp
     src/core/hash.cpp
+    src/netcode/session.cpp
     src/simulation/scripted_input.cpp
     src/simulation/simulation.cpp)
 add_library(rollback_lab::rollback_lab ALIAS rollback_lab)
@@ -25,7 +26,8 @@ if(ROLLBACK_LAB_BUILD_TESTS AND BUILD_TESTING)
     add_executable(rollback_lab_tests
         tests/test_main.cpp
         tests/test_smoke.cpp
-        tests/unit/core_simulation_test.cpp)
+        tests/unit/core_simulation_test.cpp
+        tests/unit/rollback_session_test.cpp)
     target_link_libraries(rollback_lab_tests PRIVATE rollback_lab)
     target_include_directories(rollback_lab_tests PRIVATE tests)
     rollback_lab_set_warnings(rollback_lab_tests)
