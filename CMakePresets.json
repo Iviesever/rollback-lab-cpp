@@ -57,9 +57,11 @@
     },
     {
       "name": "clang-asan",
-      "inherits": "clang-debug",
-      "displayName": "Clang ASan + UBSan",
+      "inherits": "base",
+      "displayName": "Clang RelWithDebInfo ASan + UBSan",
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CXX_COMPILER": "clang++",
         "ROLLBACK_LAB_ENABLE_SANITIZERS": "ON"
       }
     }

@@ -342,7 +342,9 @@ auto run_peer(const PeerConfig& config) -> Result<int> {
         return Result<int>::failure(handshake.error());
     }
 
-    PeerRuntime runtime{RollbackSession{SessionConfig{config.id}}};
+    PeerRuntime runtime{RollbackSession{SessionConfig{config.id}},
+                        SequenceWindow{}, {}, std::nullopt,
+                        TransportMetrics{}, 2U};
     runtime.local_history.reserve(config.frame_count);
     const auto deadline = std::chrono::steady_clock::now() +
         std::chrono::milliseconds{config.run_timeout_milliseconds};
