@@ -268,23 +268,23 @@ Result<std::string> canonical_json(const RunReport& report);
 Result<DesyncDiagnostic> compare_confirmed_hash(const HashObservation& remote);
 ```
 
-- [ ] **Step 1: 写 replay/report/desync RED tests**
+- [x] **Step 1: 写 replay/report/desync RED tests**
 
 覆盖 replay exact reconstruction、unsupported/corrupt/truncated fail；report fixed key order and timing exclusion from identity；trace event/frame bounds；controlled variant earliest divergence；speculative mismatch no desync；diagnostic input/state/version/seed fields。
 
-- [ ] **Step 2: 运行 RED**
+- [x] **Step 2: 运行 RED**
 
 运行: `cmake --build --preset msvc-debug; ctest --preset msvc-debug -R "replay|report|desync|simulate" --output-on-failure`
 
-- [ ] **Step 3: 最小 GREEN**
+- [x] **Step 3: 最小 GREEN**
 
 复用 checked byte/CRC primitives 实现 replay；显式 JSON writer 固定字段顺序和 escaping；hash exchange 只接受 <= local confirmed boundary；diagnostic 保留最近 32 input 和小型 state summary。CLI command 只组合 production APIs。
 
-- [ ] **Step 4: CLI 和回归**
+- [x] **Step 4: CLI 和回归**
 
 运行 `rollback_lab simulate --scenario default --out artifacts/run`，再 `rollback_lab replay artifacts/run/input.rlr`、`verify`、`compare report report`、两个 benchmark。预期 hash 一致、schema 合法、命令返回 0。运行 full CTest。
 
-- [ ] **Step 5: 证据与提交**
+- [x] **Step 5: 证据与提交**
 
 提交 `feat: add replay reports and desync diagnosis`。
 
