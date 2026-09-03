@@ -4,6 +4,9 @@
 #include <rollback_lab/report/canonical_json.hpp>
 #include <rollback_lab/report/scenario_runner.hpp>
 #include <rollback_lab/simulation/scripted_input.hpp>
+#include <rollback_lab/udp/demo.hpp>
+#include <rollback_lab/udp/peer.hpp>
+#include <rollback_lab/udp/relay.hpp>
 
 #include <algorithm>
 #include <charconv>
@@ -304,6 +307,125 @@ auto compare_command(const std::span<const std::string> arguments) -> int {
     return 0;
 }
 
+auto required_u32(const std::span<const std::string> arguments,
+                  const std::string_view option) -> Result<std::uint32_t> {
+    const auto value = option_value(arguments, option);
+    if (value.empty()) {
+        return Result<std::uint32_t>::failure(
+            Error{ErrorCode::invalid_argument, 0U, 0U, "required_option"});
+    }
+    return parse_u32(value, 0U);
+}
+
+auto relay_command(const std::span<const std::string> arguments) -> int {
+    const auto relay_port = required_u32(arguments, "--relay-port");
+    const auto peer_a_port = required_u32(arguments, "--peer-a-port");
+    const auto peer_b_port = required_u32(arguments, "--peer-b-port");
+    const auto maximum = required_u32(arguments, "--max-ms");
+    const auto ready = option_value(arguments, "--ready");
+    if (!relay_port.ok() || !peer_a_port.ok() || !peer_b_port.ok() ||
+        !maximum.ok() || ready.empty() || relay_port.value() > 65'535U ||
+        peer_a_port.value() > 65'535U || peer_b_port.value() > 65'535U) {
+        return 2;
+    }
+    const auto result = run_relay(RelayConfig{
+        static_cast<std::uint16_t>(relay_port.value()),
+        static_cast<std::uint16_t>(peer_a_port.value()),
+        static_cast<std::uint16_t>(peer_b_port.value()), ready,
+        maximum.value()});
+    if (!result.ok()) {
+        std::ofstream diagnostic{ready + ".error",
+                                 std::ios::binary | std::ios::trunc};
+        diagnostic << "{\"error_code\":"
+                   << static_cast<unsigned>(result.error().code)
+                   << ",\"detail\":" << result.error().detail
+                   << ",\"offset\":" << result.error().offset
+                   << ",\"context\":\"" << result.error().context
+                   << "\"}\n";
+        return 20 + static_cast<int>(result.error().code);
+    }
+    return result.value();
+}
+
+auto peer_command(const std::span<const std::string> arguments) -> int {
+    const auto id = option_value(arguments, "--id");
+    const auto listen_port = required_u32(arguments, "--listen-port");
+    const auto relay_port = required_u32(arguments, "--relay-port");
+    const auto scenario_seed = required_u32(arguments, "--scenario-seed");
+    const auto transport_seed = required_u32(arguments, "--transport-seed");
+    const auto frames = required_u32(arguments, "--frames");
+    const auto protocol = required_u32(arguments, "--protocol-version");
+    const auto handshake = required_u32(arguments, "--handshake-ms");
+    const auto run_timeout = required_u32(arguments, "--run-ms");
+    const auto report = option_value(arguments, "--report");
+    const auto replay = option_value(arguments, "--replay");
+    if ((id != "A" && id != "B") || !listen_port.ok() ||
+        !relay_port.ok() || !scenario_seed.ok() || !transport_seed.ok() ||
+        !frames.ok() || !protocol.ok() || !handshake.ok() ||
+        !run_timeout.ok() || report.empty() || replay.empty() ||
+        listen_port.value() > 65'535U || relay_port.value() > 65'535U ||
+        protocol.value() > 65'535U) {
+        return 2;
+    }
+    PeerConfig config{};
+    config.id = id == "A" ? PlayerId::a : PlayerId::b;
+    config.listen_port = static_cast<std::uint16_t>(listen_port.value());
+    config.relay_port = static_cast<std::uint16_t>(relay_port.value());
+    config.scenario_seed = scenario_seed.value();
+    config.transport_seed = transport_seed.value();
+    config.frame_count = frames.value();
+    config.protocol_version_override =
+        static_cast<std::uint16_t>(protocol.value());
+    config.handshake_timeout_milliseconds = handshake.value();
+    config.run_timeout_milliseconds = run_timeout.value();
+    config.report_path = report;
+    config.replay_path = replay;
+    const auto result = run_peer(config);
+    if (!result.ok()) {
+        std::ofstream diagnostic{report + ".error",
+                                 std::ios::binary | std::ios::trunc};
+        diagnostic << "{\"error_code\":"
+                   << static_cast<unsigned>(result.error().code)
+                   << ",\"detail\":" << result.error().detail
+                   << ",\"offset\":" << result.error().offset
+                   << ",\"context\":\"" << result.error().context
+                   << "\"}\n";
+        return 40 + static_cast<int>(result.error().code);
+    }
+    return result.value();
+}
+
+auto udp_demo_command(const std::span<const std::string> arguments) -> int {
+    const auto frames = parse_u32(option_value(arguments, "--frames"), 120U);
+    const auto watchdog =
+        parse_u32(option_value(arguments, "--watchdog-ms"), 5'000U);
+    if (!frames.ok() || !watchdog.ok()) {
+        return 2;
+    }
+    UdpDemoConfig config{};
+    config.executable_path = std::filesystem::absolute(arguments[0]);
+    const auto output = option_value(arguments, "--out");
+    if (!output.empty()) {
+        config.output_directory = output;
+    }
+    config.frame_count = frames.value();
+    config.watchdog_milliseconds = watchdog.value();
+    const auto result = run_udp_demo(config);
+    if (!result.ok()) {
+        std::cerr << "udp demo failed with error code "
+                  << static_cast<unsigned>(result.error().code)
+                  << ", detail " << result.error().detail
+                  << ", context " << result.error().context << '\n';
+        return 6;
+    }
+    std::cout << "udp demo passed: relay pid " << result.value().relay_pid
+              << ", peers " << result.value().peer_a_pid << '/'
+              << result.value().peer_b_pid << ", confirmed frame "
+              << result.value().confirmed_frame.value << ", hash "
+              << result.value().final_hash_a << '\n';
+    return 0;
+}
+
 }  // namespace
 
 auto run_cli(const std::span<const std::string> arguments) -> int {
@@ -328,12 +450,16 @@ auto run_cli(const std::span<const std::string> arguments) -> int {
         return compare_command(arguments);
     }
     if (arguments[1] == "udp-demo") {
-        std::cerr << "udp-demo is not available in this build stage\n";
-        return 6;
+        return udp_demo_command(arguments);
+    }
+    if (arguments[1] == "relay") {
+        return relay_command(arguments);
+    }
+    if (arguments[1] == "peer") {
+        return peer_command(arguments);
     }
     print_help();
     return 2;
 }
 
 }  // namespace rollback_lab
-

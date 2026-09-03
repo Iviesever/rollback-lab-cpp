@@ -24,13 +24,21 @@ add_library(rollback_lab STATIC
     src/report/trace.cpp
     src/simulation/scripted_input.cpp
     src/simulation/simulation.cpp
-    src/transport/seeded_transport.cpp)
+    src/transport/process.cpp
+    src/transport/seeded_transport.cpp
+    src/transport/udp_socket.cpp
+    src/udp/demo.cpp
+    src/udp/peer.cpp
+    src/udp/relay.cpp)
 add_library(rollback_lab::rollback_lab ALIAS rollback_lab)
 target_compile_features(rollback_lab PUBLIC cxx_std_23)
 target_include_directories(rollback_lab PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>)
 rollback_lab_set_warnings(rollback_lab)
+if(WIN32)
+    target_link_libraries(rollback_lab PUBLIC ws2_32)
+endif()
 
 add_executable(rollback_lab_cli src/cli/main.cpp)
 set_target_properties(rollback_lab_cli PROPERTIES OUTPUT_NAME rollback_lab)
@@ -45,7 +53,8 @@ if(ROLLBACK_LAB_BUILD_TESTS AND BUILD_TESTING)
         tests/unit/rollback_session_test.cpp
         tests/protocol/protocol_transport_test.cpp
         tests/integration/replay_report_test.cpp
-        tests/integration/cli_test.cpp)
+        tests/integration/cli_test.cpp
+        tests/udp/udp_demo_test.cpp)
     target_link_libraries(rollback_lab_tests PRIVATE rollback_lab)
     target_include_directories(rollback_lab_tests PRIVATE tests)
     rollback_lab_set_warnings(rollback_lab_tests)
