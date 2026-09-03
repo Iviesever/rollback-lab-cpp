@@ -3,7 +3,7 @@
 | ID | Requirement | Proof command/artifact | Status |
 |---|---|---|---|
 | V-001 | Main baseline and feature branch lineage | `git merge-base`, `git rev-list`, remote refs | Passed at `b1671c9f162a92512aea23040a309d4f27003912` |
-| V-010 | Pure integer deterministic simulation and golden trace | CTest simulation suite on MSVC and Clang/GCC | Pending |
+| V-010 | Pure integer deterministic simulation and golden trace | CTest simulation suite on MSVC and Clang/GCC | MSVC Passed at `d173fdc`; cross-compiler pending PACT-70 |
 | V-020 | Prediction, earliest rollback, rings, limits, metrics | CTest rollback suite | Pending |
 | V-030 | Seeded transport features and repeated identity | CTest transport suite and canonical report checksums | Pending |
 | V-031 | Strict protocol codec and sequence behavior | CTest protocol suite | Pending |

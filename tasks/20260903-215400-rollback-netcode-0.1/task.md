@@ -101,7 +101,7 @@ std::uint64_t hash_canonical(const WorldState& state);
 InputFrame scripted_input(std::uint64_t scenario_seed, FrameNumber frame, PlayerId player);
 ```
 
-- [ ] **Step 1: 写 simulation RED tests**
+- [x] **Step 1: 写 simulation RED tests**
 
 覆盖：同 seed/input 的逐帧 hash 一致；frame 必须等于 state boundary；四边 clamp；对向输入抵消；projectile 64 上限和稳定 ID；collision/damage/score/respawn；cooldown；checked overflow typed failure；canonical bytes 无 padding/float。
 
@@ -114,21 +114,21 @@ RL_TEST(simulation_repeats_identical_hash_history) {
 }
 ```
 
-- [ ] **Step 2: 验证 RED**
+- [x] **Step 2: 验证 RED**
 
 运行: `cmake --build --preset msvc-debug; ctest --preset msvc-debug -R "frame|checked_math|simulation|golden" --output-on-failure`
 
 预期: FAIL 于缺失生产 API，而不是测试 runner/config 错误。
 
-- [ ] **Step 3: 最小 GREEN**
+- [x] **Step 3: 最小 GREEN**
 
 实现 1,024-scale integer movement；固定 arena/player/projectile capacities；stable-ID ascending loops；widened checked arithmetic；明确 input conflict policy；逐字段 canonical serializer；FNV-1a；PCG32 scripted inputs。`SimulationVariant::damage_bias` 只供受控 desync scenario 使用，默认路径不读取测试状态。
 
-- [ ] **Step 4: focused 和 full regression**
+- [x] **Step 4: focused 和 full regression**
 
 运行上述 focused CTest，再运行 `ctest --preset msvc-debug --output-on-failure`。预期全部 PASS；将黄金 hash/bytes 写入测试常量并记录工具链。
 
-- [ ] **Step 5: 证据与提交**
+- [x] **Step 5: 证据与提交**
 
 保存 RED/GREEN/full logs、更新 matrix/progress，提交 `feat: add deterministic arena simulation`。
 
