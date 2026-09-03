@@ -217,29 +217,29 @@ Result<void> SeededTransport::send(Endpoint from, Endpoint to,
 std::vector<Delivery> SeededTransport::deliver(LogicalTick now);
 ```
 
-- [ ] **Step 1: 写 protocol/transport RED tests**
+- [x] **Step 1: 写 protocol/transport RED tests**
 
 Codec 覆盖 hello/input/hash/goodbye round trip、golden bytes、每 byte boundary 截断、magic/version/type/count/length/CRC、random bytes。Sequence 覆盖 duplicate/new out-of-order/stale/wrap。Transport 覆盖 0/1/5/20% loss、jitter、reorder、duplicate、burst、queue overflow、age timeout、同 seed schedule/report byte identity。
 
-- [ ] **Step 2: 运行 RED**
+- [x] **Step 2: 运行 RED**
 
 运行: `cmake --build --preset msvc-debug; ctest --preset msvc-debug -R "protocol|transport" --output-on-failure`
 
 预期: FAIL 于缺少 codec/transport。
 
-- [ ] **Step 3: 最小 codec GREEN**
+- [x] **Step 3: 最小 codec GREEN**
 
 实现 cursor-based checked LE reader/writer；固定 header；<=32 input records；可选 confirmed hash；payload length；trailing CRC-32/ISO-HDLC。所有 decode failure 返回 `ErrorCode`、offset、context enum，不用字符串分支。
 
-- [ ] **Step 4: 最小 transport GREEN**
+- [x] **Step 4: 最小 transport GREEN**
 
 每 send 用 PCG32 决定 drop/duplicate/jitter/reorder/burst；scheduled delivery key 为 `(tick,reorder_rank,ordinal,copy)`；bounded packet/byte queue；overflow policy 配置为 typed fail 或 drop-oldest 并计数。
 
-- [ ] **Step 5: fuzz smoke 与回归**
+- [x] **Step 5: fuzz smoke 与回归**
 
 运行 100,000 deterministic random/mutated byte inputs，预期 decode 永不 crash/越界，成功 decode 必须 encode/decode canonical round trip。运行 focused/full CTest。
 
-- [ ] **Step 6: 证据与提交**
+- [x] **Step 6: 证据与提交**
 
 保存 golden packet、fuzz counts、transport checksum，提交 `feat: add strict protocol and seeded transport`。
 

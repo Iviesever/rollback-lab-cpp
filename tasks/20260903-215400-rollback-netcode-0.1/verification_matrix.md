@@ -5,9 +5,9 @@
 | V-001 | Main baseline and feature branch lineage | `git merge-base`, `git rev-list`, remote refs | Passed at `b1671c9f162a92512aea23040a309d4f27003912` |
 | V-010 | Pure integer deterministic simulation and golden trace | CTest simulation suite on MSVC and Clang/GCC | MSVC Passed at `d173fdc`; cross-compiler pending PACT-70 |
 | V-020 | Prediction, earliest rollback, rings, limits, metrics | CTest rollback suite | Passed at `79cd6d1`; final-head rerun pending |
-| V-030 | Seeded transport features and repeated identity | CTest transport suite and canonical report checksums | Pending |
-| V-031 | Strict protocol codec and sequence behavior | CTest protocol suite | Pending |
-| V-032 | Truncation, corruption, random bytes, fuzz | protocol exhaustive test and fuzz-smoke log | Pending |
+| V-030 | Seeded transport features and repeated identity | CTest transport suite and canonical report checksums | Transport behavior passed at `3629bd1`; report checksum pending PACT-40 |
+| V-031 | Strict protocol codec and sequence behavior | CTest protocol suite | Passed at `3629bd1`; final-head rerun pending |
+| V-032 | Truncation, corruption, random bytes, fuzz | protocol exhaustive test and fuzz-smoke log | 100,000-input smoke passed at `3629bd1`; sanitizer rerun pending |
 | V-040 | Replay rebuild and rejection | replay tests plus sample replay CLI | Pending |
 | V-041 | Confirmed desync diagnosis and no speculative false positive | desync tests and diagnostic JSON | Pending |
 | V-042 | Canonical JSON/trace stable schema and bounds | report tests and schema inspection | Pending |
