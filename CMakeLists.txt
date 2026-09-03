@@ -11,11 +11,17 @@ option(ROLLBACK_LAB_BUILD_BENCHMARKS "Build rollback-lab benchmarks" ON)
 
 add_library(rollback_lab STATIC
     src/version.cpp
+    src/cli/commands.cpp
     src/core/hash.cpp
     src/netcode/session.cpp
     src/protocol/codec.cpp
     src/protocol/crc32.cpp
     src/protocol/sequence_window.cpp
+    src/replay/replay.cpp
+    src/report/canonical_json.cpp
+    src/report/desync.cpp
+    src/report/scenario_runner.cpp
+    src/report/trace.cpp
     src/simulation/scripted_input.cpp
     src/simulation/simulation.cpp
     src/transport/seeded_transport.cpp)
@@ -26,13 +32,20 @@ target_include_directories(rollback_lab PUBLIC
     $<INSTALL_INTERFACE:include>)
 rollback_lab_set_warnings(rollback_lab)
 
+add_executable(rollback_lab_cli src/cli/main.cpp)
+set_target_properties(rollback_lab_cli PROPERTIES OUTPUT_NAME rollback_lab)
+target_link_libraries(rollback_lab_cli PRIVATE rollback_lab)
+rollback_lab_set_warnings(rollback_lab_cli)
+
 if(ROLLBACK_LAB_BUILD_TESTS AND BUILD_TESTING)
     add_executable(rollback_lab_tests
         tests/test_main.cpp
         tests/test_smoke.cpp
         tests/unit/core_simulation_test.cpp
         tests/unit/rollback_session_test.cpp
-        tests/protocol/protocol_transport_test.cpp)
+        tests/protocol/protocol_transport_test.cpp
+        tests/integration/replay_report_test.cpp
+        tests/integration/cli_test.cpp)
     target_link_libraries(rollback_lab_tests PRIVATE rollback_lab)
     target_include_directories(rollback_lab_tests PRIVATE tests)
     rollback_lab_set_warnings(rollback_lab_tests)
