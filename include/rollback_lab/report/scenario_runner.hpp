@@ -16,6 +16,8 @@ struct ScenarioRunConfig final {
     std::uint32_t frame_count{600U};
     TransportConfig transport{};
     SimulationVariant peer_b_variant{SimulationVariant::canonical};
+    bool capture_trace{true};
+    std::uint32_t tail_redundancy_ticks{64U};
 };
 
 struct ScenarioArtifacts final {
@@ -28,4 +30,3 @@ struct ScenarioArtifacts final {
     -> Result<ScenarioArtifacts>;
 
 }  // namespace rollback_lab
-

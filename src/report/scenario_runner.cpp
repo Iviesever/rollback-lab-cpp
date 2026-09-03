@@ -86,12 +86,16 @@ auto recent_pairs(const Replay& replay) -> std::vector<InputPair> {
 }
 
 void record_send_effects(Trace& trace,
+                         const bool capture_trace,
                          const LogicalTick tick,
                          const Endpoint from,
                          const Endpoint to,
                          const std::uint32_t sequence,
                          const TransportMetrics before,
                          const TransportMetrics after) {
+    if (!capture_trace) {
+        return;
+    }
     trace.packets.push_back(
         PacketTraceEvent{tick, PacketTraceKind::sent, from, to, sequence});
     if (after.dropped_loss > before.dropped_loss) {
@@ -110,6 +114,7 @@ void record_send_effects(Trace& trace,
 
 auto send_packet(SeededTransport& transport,
                  Trace& trace,
+                 const bool capture_trace,
                  const Packet& packet,
                  const Endpoint from,
                  const Endpoint to,
@@ -123,7 +128,7 @@ auto send_packet(SeededTransport& transport,
     if (!sent.ok()) {
         return sent;
     }
-    record_send_effects(trace, tick, from, to, packet.sequence, before,
+    record_send_effects(trace, capture_trace, tick, from, to, packet.sequence, before,
                         transport.metrics());
     return Result<void>::success();
 }
@@ -137,6 +142,7 @@ struct DeliveryContext final {
     DesyncTracker& desync_b;
     Replay& replay;
     Trace& trace;
+    bool capture_trace{};
 };
 
 auto process_delivery(const Delivery& delivery, DeliveryContext& context)
@@ -149,9 +155,11 @@ auto process_delivery(const Delivery& delivery, DeliveryContext& context)
     auto& receiver = delivery.to == Endpoint::a ? context.peer_a : context.peer_b;
     auto& sequence = delivery.to == Endpoint::a ? context.at_a : context.at_b;
     const auto disposition = sequence.observe(packet.sequence);
-    context.trace.packets.push_back(PacketTraceEvent{
-        delivery.delivered_at, PacketTraceKind::delivered, delivery.from,
-        delivery.to, packet.sequence});
+    if (context.capture_trace) {
+        context.trace.packets.push_back(PacketTraceEvent{
+            delivery.delivered_at, PacketTraceKind::delivered, delivery.from,
+            delivery.to, packet.sequence});
+    }
     if (disposition == SequenceDisposition::duplicate ||
         disposition == SequenceDisposition::stale) {
         return Result<void>::success();
@@ -166,7 +174,7 @@ auto process_delivery(const Delivery& delivery, DeliveryContext& context)
     if (!correction.ok()) {
         return Result<void>::failure(correction.error());
     }
-    if (correction.value().performed) {
+    if (context.capture_trace && correction.value().performed) {
         context.trace.rollbacks.push_back(RollbackTraceEvent{
             receiver.report().state.frame, correction.value().rollback_from,
             correction.value().resimulated_frames});
@@ -183,7 +191,7 @@ auto process_delivery(const Delivery& delivery, DeliveryContext& context)
                                                        : context.desync_b;
             const auto diagnostic = tracker.observe(
                 local, remote, recent_pairs(context.replay), receiver.report().state);
-            if (diagnostic.has_value()) {
+            if (context.capture_trace && diagnostic.has_value()) {
                 context.trace.desync = TraceDesyncMarker{
                     diagnostic->earliest_divergent_frame,
                     diagnostic->local_hash, diagnostic->remote_hash};
@@ -247,7 +255,7 @@ auto run_seeded_scenario(const ScenarioRunConfig& config)
     DesyncTracker desync_b{config.scenario_seed};
     DeliveryContext delivery_context{peer_a, peer_b, at_a, at_b,
                                      desync_a, desync_b, artifacts.replay,
-                                     artifacts.trace};
+                                     artifacts.trace, config.capture_trace};
     std::vector<InputFrame> history_a;
     std::vector<InputFrame> history_b;
     history_a.reserve(config.frame_count);
@@ -257,9 +265,11 @@ auto run_seeded_scenario(const ScenarioRunConfig& config)
     std::uint32_t sequence_a = 1U;
     std::uint32_t sequence_b = 1U;
 
-    artifacts.trace.frames.push_back(TraceFrame{
-        FrameNumber{0U}, peer_a.report().state, peer_a.report().final_hash,
-        false, FrameNumber{0U}});
+    if (config.capture_trace) {
+        artifacts.trace.frames.push_back(TraceFrame{
+            FrameNumber{0U}, peer_a.report().state, peer_a.report().final_hash,
+            false, FrameNumber{0U}});
+    }
 
     for (std::uint32_t frame = 0U; frame < config.frame_count; ++frame) {
         const auto number = FrameNumber{frame};
@@ -294,9 +304,11 @@ auto run_seeded_scenario(const ScenarioRunConfig& config)
                                           sequence_a++);
         const auto packet_b = make_packet(peer_b, history_b, config.scenario_seed,
                                           sequence_b++);
-        const auto sent_a = send_packet(transport, artifacts.trace, packet_a,
+        const auto sent_a = send_packet(transport, artifacts.trace,
+                                        config.capture_trace, packet_a,
                                         Endpoint::a, Endpoint::b, tick);
-        const auto sent_b = send_packet(transport, artifacts.trace, packet_b,
+        const auto sent_b = send_packet(transport, artifacts.trace,
+                                        config.capture_trace, packet_b,
                                         Endpoint::b, Endpoint::a, tick);
         if (!sent_a.ok()) {
             return Result<ScenarioArtifacts>::failure(sent_a.error());
@@ -309,8 +321,9 @@ auto run_seeded_scenario(const ScenarioRunConfig& config)
             return Result<ScenarioArtifacts>::failure(processed.error());
         }
 
-        if ((frame + 1U) % artifacts.trace.sample_interval == 0U ||
-            frame + 1U == config.frame_count) {
+        if (config.capture_trace &&
+            ((frame + 1U) % artifacts.trace.sample_interval == 0U ||
+             frame + 1U == config.frame_count)) {
             const auto report = peer_a.report();
             artifacts.trace.frames.push_back(TraceFrame{
                 report.state.frame, report.state, report.final_hash,
@@ -320,15 +333,14 @@ auto run_seeded_scenario(const ScenarioRunConfig& config)
     }
     artifacts.replay.expected_final_hash = hash_canonical(replay_state);
 
-    constexpr std::uint32_t tail_redundancy_ticks = 64U;
-    for (std::uint32_t tail = 0U; tail < tail_redundancy_ticks; ++tail) {
+    for (std::uint32_t tail = 0U; tail < config.tail_redundancy_ticks; ++tail) {
         const auto tick = LogicalTick{config.frame_count + tail};
         const auto sent_a = send_packet(
-            transport, artifacts.trace,
+            transport, artifacts.trace, config.capture_trace,
             make_packet(peer_a, history_a, config.scenario_seed, sequence_a++),
             Endpoint::a, Endpoint::b, tick);
         const auto sent_b = send_packet(
-            transport, artifacts.trace,
+            transport, artifacts.trace, config.capture_trace,
             make_packet(peer_b, history_b, config.scenario_seed, sequence_b++),
             Endpoint::b, Endpoint::a, tick);
         if (!sent_a.ok() || !sent_b.ok()) {
@@ -343,7 +355,7 @@ auto run_seeded_scenario(const ScenarioRunConfig& config)
     for (std::uint32_t drain = 0U; drain < 32U; ++drain) {
         const auto processed = process_tick(
             transport,
-            LogicalTick{config.frame_count + tail_redundancy_ticks + drain},
+            LogicalTick{config.frame_count + config.tail_redundancy_ticks + drain},
             delivery_context);
         if (!processed.ok()) {
             return Result<ScenarioArtifacts>::failure(processed.error());
@@ -408,4 +420,3 @@ auto run_seeded_scenario(const ScenarioRunConfig& config)
 }
 
 }  // namespace rollback_lab
-

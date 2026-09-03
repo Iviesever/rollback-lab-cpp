@@ -20,6 +20,7 @@ add_library(rollback_lab STATIC
     src/replay/replay.cpp
     src/report/canonical_json.cpp
     src/report/desync.cpp
+    src/report/property_sweep.cpp
     src/report/scenario_runner.cpp
     src/report/trace.cpp
     src/report/viewer.cpp
@@ -83,4 +84,11 @@ if(ROLLBACK_LAB_BUILD_TESTS AND BUILD_TESTING)
     target_link_libraries(rollback_lab_protocol_fuzz_smoke PRIVATE rollback_lab)
     rollback_lab_set_warnings(rollback_lab_protocol_fuzz_smoke)
     add_test(NAME protocol_fuzz_smoke COMMAND rollback_lab_protocol_fuzz_smoke)
+
+    add_executable(rollback_lab_property_sweep
+        tests/property/property_sweep.cpp)
+    target_link_libraries(rollback_lab_property_sweep PRIVATE rollback_lab)
+    rollback_lab_set_warnings(rollback_lab_property_sweep)
+    add_test(NAME property_sweep_smoke
+        COMMAND rollback_lab_property_sweep --seeds 100 --repeat-samples 16)
 endif()
