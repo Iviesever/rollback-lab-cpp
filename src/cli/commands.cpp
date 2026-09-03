@@ -3,6 +3,7 @@
 #include <rollback_lab/replay/replay.hpp>
 #include <rollback_lab/report/canonical_json.hpp>
 #include <rollback_lab/report/scenario_runner.hpp>
+#include <rollback_lab/report/viewer.hpp>
 #include <rollback_lab/simulation/scripted_input.hpp>
 #include <rollback_lab/udp/demo.hpp>
 #include <rollback_lab/udp/peer.hpp>
@@ -34,6 +35,7 @@ void print_help() {
         << "  udp-demo\n"
         << "  verify [--frames N]\n"
         << "  benchmark [--frames N]\n"
+        << "  desync-demo [--out FILE]\n"
         << "  compare REPORT_A REPORT_B\n";
 }
 
@@ -170,7 +172,8 @@ auto simulate_command(const std::span<const std::string> arguments) -> int {
     if (!report.ok() || !trace.ok() || !replay.ok() ||
         !write_text(output / "report.json", report.value()) ||
         !write_text(output / "trace.json", trace.value()) ||
-        !write_binary(output / "input.rlr", replay.value())) {
+        !write_binary(output / "input.rlr", replay.value()) ||
+        !write_viewer(artifacts.value().trace, output / "viewer.html").ok()) {
         std::cerr << "artifact write failed\n";
         return 5;
     }
@@ -304,6 +307,53 @@ auto compare_command(const std::span<const std::string> arguments) -> int {
         return 4;
     }
     std::cout << "reports match: " << left_identity << '\n';
+    return 0;
+}
+
+auto desync_demo_command(const std::span<const std::string> arguments) -> int {
+    auto canonical = make_initial_world();
+    canonical.players[0].x = 100 * kSubunitsPerWorldUnit;
+    canonical.players[0].y = 100 * kSubunitsPerWorldUnit;
+    canonical.players[1].x = 140 * kSubunitsPerWorldUnit;
+    canonical.players[1].y = 100 * kSubunitsPerWorldUnit;
+    const InputPair inputs{
+        InputFrame{FrameNumber{0U}, PlayerId::a, 0U,
+                   button_mask(Button::attack)},
+        InputFrame{FrameNumber{0U}, PlayerId::b, 0U, 0U}};
+    const auto expected = simulate_frame(canonical, FrameNumber{0U}, inputs);
+    const auto divergent = simulate_frame(canonical, FrameNumber{0U}, inputs,
+                                          SimulationVariant::damage_bias);
+    if (!expected.ok() || !divergent.ok()) {
+        return 3;
+    }
+    const HashObservation local{FrameNumber{1U},
+                                hash_canonical(expected.value()), true};
+    const HashObservation remote{FrameNumber{1U},
+                                 hash_canonical(divergent.value()), true};
+    DesyncTracker tracker{0xD35A7CU};
+    const auto diagnostic = tracker.observe(local, remote, {inputs},
+                                            expected.value());
+    if (!diagnostic.has_value()) {
+        return 4;
+    }
+    const auto json = canonical_json(diagnostic.value());
+    if (!json.ok()) {
+        return 5;
+    }
+    const auto output = option_value(arguments, "--out");
+    if (output.empty()) {
+        std::cout << json.value();
+        return 0;
+    }
+    const auto path = std::filesystem::path{output};
+    std::error_code error;
+    if (!path.parent_path().empty()) {
+        std::filesystem::create_directories(path.parent_path(), error);
+    }
+    if (error || !write_text(path, json.value())) {
+        return 6;
+    }
+    std::cout << "desync diagnostic written: " << path.string() << '\n';
     return 0;
 }
 
@@ -445,6 +495,9 @@ auto run_cli(const std::span<const std::string> arguments) -> int {
     }
     if (arguments[1] == "benchmark") {
         return benchmark_command(arguments);
+    }
+    if (arguments[1] == "desync-demo") {
+        return desync_demo_command(arguments);
     }
     if (arguments[1] == "compare") {
         return compare_command(arguments);

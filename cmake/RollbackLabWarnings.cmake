@@ -1,6 +1,6 @@
 function(rollback_lab_set_warnings target)
     if(MSVC)
-        target_compile_options(${target} PRIVATE /W4 /WX /permissive- /EHsc)
+        target_compile_options(${target} PRIVATE /W4 /WX /permissive- /EHsc /utf-8)
     else()
         target_compile_options(${target} PRIVATE
             -Wall -Wextra -Wpedantic -Werror)
@@ -18,4 +18,3 @@ function(rollback_lab_set_warnings target)
         endif()
     endif()
 endfunction()
-

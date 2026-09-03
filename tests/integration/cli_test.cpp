@@ -27,20 +27,28 @@ RL_TEST(cli_simulate_replay_verify_benchmark_and_compare_use_real_artifacts) {
     const auto report = output / "report.json";
     const auto replay = output / "input.rlr";
     const auto trace = output / "trace.json";
+    const auto viewer = output / "viewer.html";
+    const auto diagnostic = output / "desync-diagnostic.json";
     RL_CHECK(std::filesystem::is_regular_file(report));
     RL_CHECK(std::filesystem::is_regular_file(replay));
     RL_CHECK(std::filesystem::is_regular_file(trace));
+    RL_CHECK(std::filesystem::is_regular_file(viewer));
     RL_CHECK(std::filesystem::file_size(report) > 100U);
     RL_CHECK(std::filesystem::file_size(replay) > 100U);
     RL_CHECK(std::filesystem::file_size(trace) > 100U);
+    RL_CHECK(std::filesystem::file_size(viewer) >
+             std::filesystem::file_size(trace));
 
     RL_CHECK(call({"rollback_lab", "replay", replay.string()}) == 0);
     RL_CHECK(call({"rollback_lab", "verify", "--frames", "120"}) == 0);
     RL_CHECK(call({"rollback_lab", "benchmark", "--frames", "1000"}) == 0);
+    RL_CHECK(call({"rollback_lab", "desync-demo", "--out",
+                   diagnostic.string()}) == 0);
+    RL_CHECK(std::filesystem::is_regular_file(diagnostic));
+    RL_CHECK(std::filesystem::file_size(diagnostic) > 100U);
     RL_CHECK(call({"rollback_lab", "compare", report.string(),
                    report.string()}) == 0);
 
     std::filesystem::remove_all(output, error);
     RL_CHECK(!error);
 }
-

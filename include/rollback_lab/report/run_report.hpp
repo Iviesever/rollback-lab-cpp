@@ -17,7 +17,7 @@ struct TimingObservations final {
 };
 
 struct RunReport final {
-    std::string git_sha{"uncommitted"};
+    std::string git_sha{std::string{kGitSha}};
     std::string build_type{"unknown"};
     std::string compiler{"unknown"};
     std::string os{"unknown"};
@@ -46,4 +46,3 @@ struct RunReport final {
 [[nodiscard]] auto report_identity(const RunReport& report) -> StateHash;
 
 }  // namespace rollback_lab
-

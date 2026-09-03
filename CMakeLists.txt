@@ -22,6 +22,7 @@ add_library(rollback_lab STATIC
     src/report/desync.cpp
     src/report/scenario_runner.cpp
     src/report/trace.cpp
+    src/report/viewer.cpp
     src/simulation/scripted_input.cpp
     src/simulation/simulation.cpp
     src/transport/process.cpp
@@ -31,11 +32,27 @@ add_library(rollback_lab STATIC
     src/udp/peer.cpp
     src/udp/relay.cpp)
 add_library(rollback_lab::rollback_lab ALIAS rollback_lab)
+set_target_properties(rollback_lab PROPERTIES
+    OUTPUT_NAME rollback_lab_core
+    PDB_NAME rollback_lab_core
+    COMPILE_PDB_NAME rollback_lab_core)
+find_package(Git QUIET)
+set(ROLLBACK_LAB_GIT_SHA "unavailable")
+if(GIT_FOUND)
+    execute_process(
+        COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        OUTPUT_VARIABLE ROLLBACK_LAB_GIT_SHA
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+endif()
 target_compile_features(rollback_lab PUBLIC cxx_std_23)
 target_include_directories(rollback_lab PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>)
 rollback_lab_set_warnings(rollback_lab)
+target_compile_definitions(rollback_lab PUBLIC
+    ROLLBACK_LAB_GIT_SHA="${ROLLBACK_LAB_GIT_SHA}")
 if(WIN32)
     target_link_libraries(rollback_lab PUBLIC ws2_32)
 endif()
@@ -54,6 +71,7 @@ if(ROLLBACK_LAB_BUILD_TESTS AND BUILD_TESTING)
         tests/protocol/protocol_transport_test.cpp
         tests/integration/replay_report_test.cpp
         tests/integration/cli_test.cpp
+        tests/integration/viewer_generation_test.cpp
         tests/udp/udp_demo_test.cpp)
     target_link_libraries(rollback_lab_tests PRIVATE rollback_lab)
     target_include_directories(rollback_lab_tests PRIVATE tests)
