@@ -49,3 +49,15 @@ rollback_lab_tests.exe linked successfully
 
 Warnings are elevated to errors for project targets.
 
+## Git and remote lineage
+
+```text
+Repository: https://github.com/Iviesever/rollback-lab-cpp
+Visibility: PUBLIC
+Default branch: main
+Baseline SHA: b1671c9f162a92512aea23040a309d4f27003912
+Feature branch: feat/rollback-netcode-0.1
+merge-base(HEAD, origin/main): b1671c9f162a92512aea23040a309d4f27003912
+```
+
+`main` was pushed before the feature branch was created. The feature checkout tracks the real fetched `origin/main` state.

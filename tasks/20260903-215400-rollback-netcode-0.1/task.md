@@ -62,7 +62,7 @@ RL_TEST(version_contract_is_nonzero) {
 
 预期: configure/build 成功，1+ smoke tests PASS，零项目警告。
 
-- [ ] **Step 5: Git/GitHub 基线和分支**
+- [x] **Step 5: Git/GitHub 基线和分支**
 
 ```powershell
 git init -b main
