@@ -30,6 +30,9 @@ struct PropertySweepResult final {
     std::uint32_t timeout_failures{};
     std::array<std::uint32_t, 4U> loss_rate_scenarios{};
     StateHash identity_digest{};
+    bool full_sweep_repeated{};
+
+    auto operator==(const PropertySweepResult&) const -> bool = default;
 };
 
 [[nodiscard]] auto run_property_sweep(const PropertySweepConfig& config)

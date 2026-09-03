@@ -30,6 +30,7 @@ namespace {
 struct PeerRuntime final {
     RollbackSession session;
     SequenceWindow sequences;
+    DesyncTracker desync;
     std::vector<InputFrame> local_history;
     std::optional<StateHash> remote_final_hash;
     TransportMetrics metrics{};
@@ -170,6 +171,41 @@ auto confirmed_hash_window(const RollbackSession& session)
     return hashes;
 }
 
+auto diagnostic_inputs(const RollbackSession& session,
+                       const FrameNumber boundary) -> std::vector<InputPair> {
+    std::vector<InputPair> inputs;
+    inputs.reserve(32U);
+    for (std::uint32_t offset = 1U; offset <= 32U; ++offset) {
+        const auto frame = FrameNumber{
+            static_cast<std::uint32_t>(boundary.value - offset)};
+        const auto input_a = session.confirmed_input(PlayerId::a, frame);
+        const auto input_b = session.confirmed_input(PlayerId::b, frame);
+        if (!input_a.ok() || !input_b.ok()) {
+            break;
+        }
+        inputs.push_back(InputPair{input_a.value(), input_b.value()});
+    }
+    std::reverse(inputs.begin(), inputs.end());
+    return inputs;
+}
+
+auto write_desync_diagnostic(const PeerConfig& config,
+                             const DesyncDiagnostic& diagnostic)
+    -> Result<void> {
+    const auto json = canonical_json(diagnostic);
+    if (!json.ok()) {
+        return Result<void>::failure(json.error());
+    }
+    std::ofstream file{config.diagnostic_path,
+                       std::ios::binary | std::ios::trunc};
+    file << json.value();
+    if (!file) {
+        return Result<void>::failure(
+            Error{ErrorCode::io_error, 0U, 0U, "udp_desync_file"});
+    }
+    return Result<void>::success();
+}
+
 auto send_inputs(const PeerConfig& config,
                  UdpSocket& socket,
                  PeerRuntime& runtime) -> Result<void> {
@@ -247,6 +283,27 @@ auto receive_one(const PeerConfig& config,
         const auto local = runtime.session.hash_at(remote_hash.frame);
         if (local.ok()) {
             if (local.value() != remote_hash.hash) {
+                const auto local_state =
+                    runtime.session.state_at(remote_hash.frame);
+                if (!local_state.ok()) {
+                    return Result<bool>::failure(local_state.error());
+                }
+                const auto diagnostic = runtime.desync.observe(
+                    HashObservation{remote_hash.frame, local.value(), true},
+                    HashObservation{remote_hash.frame, remote_hash.hash, true},
+                    diagnostic_inputs(runtime.session, remote_hash.frame),
+                    local_state.value());
+                if (!diagnostic.has_value()) {
+                    return Result<bool>::failure(
+                        Error{ErrorCode::desync, remote_hash.hash,
+                              remote_hash.frame.value,
+                              "udp_desync_missing_diagnostic"});
+                }
+                const auto written =
+                    write_desync_diagnostic(config, diagnostic.value());
+                if (!written.ok()) {
+                    return Result<bool>::failure(written.error());
+                }
                 return Result<bool>::failure(
                     Error{ErrorCode::desync, remote_hash.hash,
                           remote_hash.frame.value,
@@ -399,8 +456,11 @@ auto run_peer(const PeerConfig& config) -> Result<int> {
         return Result<int>::failure(handshake.error());
     }
 
-    PeerRuntime runtime{RollbackSession{SessionConfig{config.id}},
-                        SequenceWindow{}, {}, std::nullopt,
+    SessionConfig session_config{config.id};
+    session_config.variant = config.simulation_variant;
+    PeerRuntime runtime{RollbackSession{session_config},
+                        SequenceWindow{}, DesyncTracker{config.scenario_seed},
+                        {}, std::nullopt,
                         TransportMetrics{}, 2U};
     runtime.local_history.reserve(config.frame_count);
     const auto deadline = std::chrono::steady_clock::now() +

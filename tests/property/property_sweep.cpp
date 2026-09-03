@@ -32,6 +32,15 @@ auto parse(const std::string& text, const std::uint32_t fallback)
                : 0U;
 }
 
+auto has_flag(const int argc, char** argv, const std::string_view flag) -> bool {
+    for (int index = 1; index < argc; ++index) {
+        if (argv[index] == flag) {
+            return true;
+        }
+    }
+    return false;
+}
+
 }  // namespace
 
 int main(const int argc, char** argv) {
@@ -44,7 +53,7 @@ int main(const int argc, char** argv) {
         std::cerr << "invalid property sweep arguments\n";
         return 2;
     }
-    const auto result = rollback_lab::run_property_sweep(config);
+    auto result = rollback_lab::run_property_sweep(config);
     if (!result.ok()) {
         std::cerr << "property sweep failed: code "
                   << static_cast<unsigned>(result.error().code)
@@ -61,7 +70,16 @@ int main(const int argc, char** argv) {
         std::cerr << "property sweep invariant failure\n";
         return 4;
     }
-    const auto json = rollback_lab::canonical_json(result.value());
+    auto report = result.value();
+    if (has_flag(argc, argv, "--repeat-full")) {
+        const auto repeated = rollback_lab::run_property_sweep(config);
+        if (!repeated.ok() || repeated.value() != report) {
+            std::cerr << "full property sweep identity mismatch\n";
+            return 6;
+        }
+        report.full_sweep_repeated = true;
+    }
+    const auto json = rollback_lab::canonical_json(report);
     std::cout << json;
     const auto output = value_after(argc, argv, "--out");
     if (!output.empty()) {
@@ -73,4 +91,3 @@ int main(const int argc, char** argv) {
     }
     return 0;
 }
-

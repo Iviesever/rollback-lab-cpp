@@ -248,10 +248,11 @@ RL_TEST(zero_latency_packet_scenario_has_no_prediction_or_rollback) {
 RL_TEST(packet_driven_desync_reports_the_actual_earliest_confirmed_boundary) {
     std::uint64_t selected_seed = 0U;
     FrameNumber expected_divergence{};
+    std::int16_t expected_hp_a{};
     for (std::uint64_t seed = 1U; seed <= 64U && selected_seed == 0U; ++seed) {
         auto canonical = make_initial_world();
         auto biased = canonical;
-        for (std::uint32_t frame = 0U; frame < 360U; ++frame) {
+        for (std::uint32_t frame = 0U; frame < 240U; ++frame) {
             const auto number = FrameNumber{frame};
             const InputPair inputs{scripted_input(seed, number, PlayerId::a),
                                    scripted_input(seed, number, PlayerId::b)};
@@ -265,16 +266,18 @@ RL_TEST(packet_driven_desync_reports_the_actual_earliest_confirmed_boundary) {
             if (hash_canonical(canonical) != hash_canonical(biased)) {
                 selected_seed = seed;
                 expected_divergence = canonical.frame;
+                expected_hp_a = canonical.players[0].hp;
                 break;
             }
         }
     }
     RL_REQUIRE(selected_seed != 0U);
+    RL_CHECK(selected_seed == 1U);
 
     ScenarioRunConfig config{};
     config.scenario_seed = selected_seed;
     config.transport_seed = 0xD35A7CU;
-    config.frame_count = 360U;
+    config.frame_count = 240U;
     config.peer_b_variant = SimulationVariant::damage_bias;
     config.transport.base_latency_ticks = 5U;
     config.transport.jitter_ticks = 2U;
@@ -288,6 +291,8 @@ RL_TEST(packet_driven_desync_reports_the_actual_earliest_confirmed_boundary) {
     RL_REQUIRE(run.value().desync_diagnostic.has_value());
     RL_CHECK(run.value().desync_diagnostic->earliest_divergent_frame ==
              expected_divergence);
+    RL_CHECK(run.value().desync_diagnostic->players[0].hp ==
+             expected_hp_a);
     RL_REQUIRE(run.value().trace.desync.has_value());
     RL_CHECK(run.value().trace.desync->frame == expected_divergence);
 }

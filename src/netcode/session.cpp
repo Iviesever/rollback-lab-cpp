@@ -235,4 +235,17 @@ auto RollbackSession::hash_at(const FrameNumber boundary) const
     return storage_->hashes.get(boundary);
 }
 
+auto RollbackSession::state_at(const FrameNumber boundary) const
+    -> Result<WorldState> {
+    if (frame_before(metrics_.confirmed_frame, boundary)) {
+        return Result<WorldState>::failure(
+            Error{ErrorCode::stale_frame, boundary.value, 0U,
+                  "unconfirmed_state"});
+    }
+    if (boundary == state_.frame) {
+        return Result<WorldState>::success(state_);
+    }
+    return storage_->snapshots.get(boundary);
+}
+
 }  // namespace rollback_lab

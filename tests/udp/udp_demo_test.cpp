@@ -5,6 +5,9 @@
 #include <rollback_lab/udp/demo.hpp>
 
 #include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <string>
 
 namespace {
 
@@ -122,6 +125,39 @@ RL_TEST(udp_demo_simulation_version_mismatch_returns_nonzero) {
     RL_CHECK(!result.ok());
     RL_CHECK(result.error().code == ErrorCode::child_failure ||
              result.error().code == ErrorCode::timeout);
+    clean(output);
+}
+
+RL_TEST(udp_desync_writes_peer_local_diagnostic_and_returns_nonzero) {
+    const auto output = temp_output("rollback_lab_udp_desync");
+    clean(output);
+    UdpDemoConfig config{};
+    config.executable_path = executable_path();
+    config.output_directory = output;
+    config.scenario_seed = 1U;
+    config.frame_count = 240U;
+    config.watchdog_milliseconds = 6'000U;
+    config.peer_b_variant = SimulationVariant::damage_bias;
+    const auto result = run_udp_demo(config);
+    RL_CHECK(!result.ok());
+    RL_CHECK(result.error().code == ErrorCode::child_failure ||
+             result.error().code == ErrorCode::desync);
+    const auto diagnostic_a = output / "peer-a-desync.json";
+    const auto diagnostic_b = output / "peer-b-desync.json";
+    RL_CHECK(std::filesystem::is_regular_file(diagnostic_a) ||
+             std::filesystem::is_regular_file(diagnostic_b));
+    const auto path = std::filesystem::is_regular_file(diagnostic_a)
+                          ? diagnostic_a
+                          : diagnostic_b;
+    std::ifstream stream{path, std::ios::binary};
+    const std::string json{std::istreambuf_iterator<char>{stream},
+                           std::istreambuf_iterator<char>{}};
+    RL_CHECK(json.find("\"earliest_divergent_frame\"") !=
+             std::string::npos);
+    RL_CHECK(json.find("\"recent_inputs\"") != std::string::npos);
+    RL_CHECK(json.find("\"state_summary\"") != std::string::npos);
+    RL_CHECK(json.find("\"simulation_version\":1") !=
+             std::string::npos);
     clean(output);
 }
 

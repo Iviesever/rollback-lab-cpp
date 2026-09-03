@@ -213,6 +213,8 @@ auto canonical_json(const PropertySweepResult& result) -> std::string {
            << result.loss_rate_scenarios[2] << ",\"20\":"
            << result.loss_rate_scenarios[3] << "},\n"
            << "  \"identity_digest\":" << result.identity_digest << ",\n"
+           << "  \"full_sweep_repeated\":"
+           << (result.full_sweep_repeated ? "true" : "false") << ",\n"
            << "  \"success\":"
            << (result.successful_seeds + result.declared_failures ==
                        result.total_seeds &&

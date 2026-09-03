@@ -59,6 +59,7 @@ public:
     [[nodiscard]] auto confirmed_input(PlayerId player, FrameNumber frame) const
         -> Result<InputFrame>;
     [[nodiscard]] auto hash_at(FrameNumber boundary) const -> Result<StateHash>;
+    [[nodiscard]] auto state_at(FrameNumber boundary) const -> Result<WorldState>;
 
 private:
     [[nodiscard]] auto remote_peer() const noexcept -> PlayerId;

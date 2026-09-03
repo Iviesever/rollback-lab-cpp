@@ -32,7 +32,7 @@ void print_help() {
         << "rollback_lab <command>\n"
         << "  simulate --scenario default [--frames N] [--out DIRECTORY]\n"
         << "  replay FILE\n"
-        << "  udp-demo\n"
+        << "  udp-demo [--frames N] [--out DIRECTORY] [--inject-desync]\n"
         << "  verify [--frames N]\n"
         << "  benchmark [--frames N]\n"
         << "  desync-demo [--out FILE]\n"
@@ -406,14 +406,18 @@ auto peer_command(const std::span<const std::string> arguments) -> int {
     const auto frames = required_u32(arguments, "--frames");
     const auto protocol = required_u32(arguments, "--protocol-version");
     const auto simulation = required_u32(arguments, "--simulation-version");
+    const auto variant = option_value(arguments, "--variant");
     const auto handshake = required_u32(arguments, "--handshake-ms");
     const auto run_timeout = required_u32(arguments, "--run-ms");
     const auto report = option_value(arguments, "--report");
     const auto replay = option_value(arguments, "--replay");
+    const auto diagnostic = option_value(arguments, "--diagnostic");
     if ((id != "A" && id != "B") || !listen_port.ok() ||
         !relay_port.ok() || !scenario_seed.ok() || !transport_seed.ok() ||
         !frames.ok() || !protocol.ok() || !simulation.ok() || !handshake.ok() ||
         !run_timeout.ok() || report.empty() || replay.empty() ||
+        diagnostic.empty() ||
+        (variant != "canonical" && variant != "damage-bias") ||
         listen_port.value() > 65'535U || relay_port.value() > 65'535U ||
         protocol.value() > 65'535U) {
         return 2;
@@ -428,20 +432,24 @@ auto peer_command(const std::span<const std::string> arguments) -> int {
     config.protocol_version_override =
         static_cast<std::uint16_t>(protocol.value());
     config.simulation_version_override = simulation.value();
+    config.simulation_variant = variant == "damage-bias"
+                                    ? SimulationVariant::damage_bias
+                                    : SimulationVariant::canonical;
     config.handshake_timeout_milliseconds = handshake.value();
     config.run_timeout_milliseconds = run_timeout.value();
     config.report_path = report;
     config.replay_path = replay;
+    config.diagnostic_path = diagnostic;
     const auto result = run_peer(config);
     if (!result.ok()) {
-        std::ofstream diagnostic{report + ".error",
-                                 std::ios::binary | std::ios::trunc};
-        diagnostic << "{\"error_code\":"
-                   << static_cast<unsigned>(result.error().code)
-                   << ",\"detail\":" << result.error().detail
-                   << ",\"offset\":" << result.error().offset
-                   << ",\"context\":\"" << result.error().context
-                   << "\"}\n";
+        std::ofstream diagnostic_file{report + ".error",
+                                      std::ios::binary | std::ios::trunc};
+        diagnostic_file << "{\"error_code\":"
+                        << static_cast<unsigned>(result.error().code)
+                        << ",\"detail\":" << result.error().detail
+                        << ",\"offset\":" << result.error().offset
+                        << ",\"context\":\"" << result.error().context
+                        << "\"}\n";
         return 40 + static_cast<int>(result.error().code);
     }
     return result.value();
@@ -462,6 +470,11 @@ auto udp_demo_command(const std::span<const std::string> arguments) -> int {
     }
     config.frame_count = frames.value();
     config.watchdog_milliseconds = watchdog.value();
+    if (std::find(arguments.begin(), arguments.end(), "--inject-desync") !=
+        arguments.end()) {
+        config.scenario_seed = 1U;
+        config.peer_b_variant = SimulationVariant::damage_bias;
+    }
     const auto result = run_udp_demo(config);
     if (!result.ok()) {
         std::cerr << "udp demo failed with error code "

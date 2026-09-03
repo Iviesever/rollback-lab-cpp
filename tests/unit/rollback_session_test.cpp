@@ -107,6 +107,22 @@ RL_TEST(dirty_input_does_not_advance_confirmation_before_resimulation) {
     RL_CHECK(session.hash_at(FrameNumber{3U}).ok());
 }
 
+RL_TEST(session_exposes_only_exact_confirmed_boundary_state_for_diagnostics) {
+    RollbackSession session{SessionConfig{PlayerId::a}};
+    for (std::uint32_t frame = 0U; frame < 4U; ++frame) {
+        const auto number = FrameNumber{frame};
+        RL_REQUIRE(session.ingest_remote(input(number, PlayerId::b)).ok());
+        require_advance(session, input(number, PlayerId::a));
+    }
+    const auto boundary_two = session.state_at(FrameNumber{2U});
+    const auto boundary_four = session.state_at(FrameNumber{4U});
+    RL_REQUIRE(boundary_two.ok());
+    RL_REQUIRE(boundary_four.ok());
+    RL_CHECK(boundary_two.value().frame == FrameNumber{2U});
+    RL_CHECK(boundary_four.value() == session.report().state);
+    RL_CHECK(!session.state_at(FrameNumber{5U}).ok());
+}
+
 RL_TEST(input_beyond_window_fails_closed_but_boundary_is_accepted) {
     RollbackSession boundary{SessionConfig{PlayerId::a}};
     for (std::uint32_t frame = 0; frame < 120U; ++frame) {

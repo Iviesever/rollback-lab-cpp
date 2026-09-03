@@ -86,11 +86,23 @@ auto make_packet(const RollbackSession& sender,
     return packet;
 }
 
-auto recent_pairs(const Replay& replay) -> std::vector<InputPair> {
-    const auto count = std::min<std::size_t>(replay.confirmed_inputs.size(), 32U);
-    return std::vector<InputPair>{
-        replay.confirmed_inputs.end() - static_cast<std::ptrdiff_t>(count),
-        replay.confirmed_inputs.end()};
+auto peer_diagnostic_inputs(const RollbackSession& session,
+                            const FrameNumber boundary)
+    -> std::vector<InputPair> {
+    std::vector<InputPair> inputs;
+    inputs.reserve(32U);
+    for (std::uint32_t offset = 1U; offset <= 32U; ++offset) {
+        const auto frame = FrameNumber{
+            static_cast<std::uint32_t>(boundary.value - offset)};
+        const auto input_a = session.confirmed_input(PlayerId::a, frame);
+        const auto input_b = session.confirmed_input(PlayerId::b, frame);
+        if (!input_a.ok() || !input_b.ok()) {
+            break;
+        }
+        inputs.push_back(InputPair{input_a.value(), input_b.value()});
+    }
+    std::reverse(inputs.begin(), inputs.end());
+    return inputs;
 }
 
 void push_packet_event(Trace& trace, PacketTraceEvent event) {
@@ -156,7 +168,6 @@ struct DeliveryContext final {
     SequenceWindow& at_b;
     DesyncTracker& desync_a;
     DesyncTracker& desync_b;
-    Replay& replay;
     Trace& trace;
     bool capture_trace{};
 };
@@ -203,6 +214,13 @@ auto process_delivery(const Delivery& delivery, DeliveryContext& context)
     for (const auto& remote_hash : packet.confirmed_hashes) {
         const auto local_hash = receiver.hash_at(remote_hash.frame);
         if (local_hash.ok()) {
+            if (local_hash.value() == remote_hash.hash) {
+                continue;
+            }
+            const auto local_state = receiver.state_at(remote_hash.frame);
+            if (!local_state.ok()) {
+                continue;
+            }
             const HashObservation local{remote_hash.frame,
                                         local_hash.value(), true};
             const HashObservation remote{remote_hash.frame,
@@ -210,7 +228,8 @@ auto process_delivery(const Delivery& delivery, DeliveryContext& context)
             auto& tracker = delivery.to == Endpoint::a ? context.desync_a
                                                        : context.desync_b;
             const auto diagnostic = tracker.observe(
-                local, remote, recent_pairs(context.replay), receiver.report().state);
+                local, remote, peer_diagnostic_inputs(receiver, remote_hash.frame),
+                local_state.value());
             if (context.capture_trace && diagnostic.has_value()) {
                 context.trace.desync = TraceDesyncMarker{
                     diagnostic->earliest_divergent_frame,
@@ -272,8 +291,8 @@ auto run_seeded_scenario(const ScenarioRunConfig& config)
     DesyncTracker desync_a{config.scenario_seed};
     DesyncTracker desync_b{config.scenario_seed};
     DeliveryContext delivery_context{peer_a, peer_b, at_a, at_b,
-                                     desync_a, desync_b, artifacts.replay,
-                                     artifacts.trace, config.capture_trace};
+                                     desync_a, desync_b, artifacts.trace,
+                                     config.capture_trace};
     std::vector<InputFrame> history_a;
     std::vector<InputFrame> history_b;
     history_a.reserve(config.frame_count);
@@ -427,9 +446,9 @@ auto run_seeded_scenario(const ScenarioRunConfig& config)
         if (!desync_a.diagnostic().has_value()) {
             artifacts.desync_diagnostic = desync_b.diagnostic();
         } else if (!desync_b.diagnostic().has_value() ||
-                   frame_before(
-                       desync_a.diagnostic()->earliest_divergent_frame,
-                       desync_b.diagnostic()->earliest_divergent_frame)) {
+                   !frame_before(
+                       desync_b.diagnostic()->earliest_divergent_frame,
+                       desync_a.diagnostic()->earliest_divergent_frame)) {
             artifacts.desync_diagnostic = desync_a.diagnostic();
         } else {
             artifacts.desync_diagnostic = desync_b.diagnostic();

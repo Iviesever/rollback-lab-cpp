@@ -4,6 +4,7 @@
 #include <rollback_lab/core/frame.hpp>
 #include <rollback_lab/core/hash.hpp>
 #include <rollback_lab/version.hpp>
+#include <rollback_lab/simulation/simulation.hpp>
 
 #include <cstdint>
 #include <filesystem>
@@ -22,6 +23,7 @@ struct UdpDemoConfig final {
     bool launch_peer_b{true};
     std::uint16_t peer_b_protocol_version{1U};
     std::uint32_t peer_b_simulation_version{kSimulationVersion};
+    SimulationVariant peer_b_variant{SimulationVariant::canonical};
 };
 
 struct UdpDemoResult final {

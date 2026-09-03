@@ -54,7 +54,7 @@ if ($LASTEXITCODE -ne 0) { throw "Sanitizer tests failed." }
 if ($Full) {
     $sweep = Join-Path $projectRoot "build\msvc-release\rollback_lab_property_sweep.exe"
     $evidence = Join-Path $projectRoot "tasks\20260903-215400-rollback-netcode-0.1\evidence\PACT-70\property-sweep-10000.json"
-    & $sweep --seeds 10000 --repeat-samples 128 --out $evidence
+    & $sweep --seeds 10000 --repeat-samples 128 --repeat-full --out $evidence
     if ($LASTEXITCODE -ne 0) { throw "10,000-seed property sweep failed." }
 }
 

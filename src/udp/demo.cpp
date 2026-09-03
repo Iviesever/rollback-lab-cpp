@@ -83,8 +83,10 @@ auto peer_arguments(const UdpDemoConfig& config,
                     const std::uint16_t relay_port,
                     const std::filesystem::path& report,
                     const std::filesystem::path& replay,
+                    const std::filesystem::path& diagnostic,
                     const std::uint16_t protocol_version,
-                    const std::uint32_t simulation_version)
+                    const std::uint32_t simulation_version,
+                    const SimulationVariant variant)
     -> std::vector<std::string> {
     const auto handshake = std::max<std::uint32_t>(
         200U, std::min<std::uint32_t>(1'000U,
@@ -98,10 +100,14 @@ auto peer_arguments(const UdpDemoConfig& config,
         "--frames", number(config.frame_count),
         "--protocol-version", number(protocol_version),
         "--simulation-version", number(simulation_version),
+        "--variant", variant == SimulationVariant::canonical
+                         ? "canonical"
+                         : "damage-bias",
         "--handshake-ms", number(handshake),
         "--run-ms", number(config.watchdog_milliseconds),
         "--report", report.string(),
         "--replay", replay.string(),
+        "--diagnostic", diagnostic.string(),
     };
 }
 
@@ -210,7 +216,10 @@ auto run_udp_demo(const UdpDemoConfig& config) -> Result<UdpDemoResult> {
     const auto report_b = config.output_directory / "peer-b-report.json";
     const auto replay_a = config.output_directory / "peer-a-input.rlr";
     const auto replay_b = config.output_directory / "peer-b-input.rlr";
-    for (const auto& path : {ready_file, report_a, report_b, replay_a, replay_b}) {
+    const auto diagnostic_a = config.output_directory / "peer-a-desync.json";
+    const auto diagnostic_b = config.output_directory / "peer-b-desync.json";
+    for (const auto& path : {ready_file, report_a, report_b, replay_a, replay_b,
+                             diagnostic_a, diagnostic_b}) {
         std::filesystem::remove(path, filesystem_error);
         filesystem_error.clear();
     }
@@ -238,8 +247,9 @@ auto run_udp_demo(const UdpDemoConfig& config) -> Result<UdpDemoResult> {
         config.executable_path,
         peer_arguments(config, PlayerId::a, peer_a_port, relay_port,
                        report_a, replay_a,
+                       diagnostic_a,
                        static_cast<std::uint16_t>(kProtocolVersion),
-                       kSimulationVersion));
+                       kSimulationVersion, SimulationVariant::canonical));
     if (!peer_a_result.ok()) {
         return Result<UdpDemoResult>::failure(peer_a_result.error());
     }
@@ -250,8 +260,10 @@ auto run_udp_demo(const UdpDemoConfig& config) -> Result<UdpDemoResult> {
             config.executable_path,
             peer_arguments(config, PlayerId::b, peer_b_port, relay_port,
                            report_b, replay_b,
+                           diagnostic_b,
                            config.peer_b_protocol_version,
-                           config.peer_b_simulation_version));
+                           config.peer_b_simulation_version,
+                           config.peer_b_variant));
         if (!peer_b_result.ok()) {
             return Result<UdpDemoResult>::failure(peer_b_result.error());
         }
