@@ -156,7 +156,7 @@ Result<void> RollbackSession::observe_remote_confirmation(FrameNumber frame,
 SessionReport RollbackSession::report() const;
 ```
 
-- [ ] **Step 1: 写 ring/session RED tests**
+- [x] **Step 1: 写 ring/session RED tests**
 
 覆盖 ring wrap、missing/stale key、120 boundary；zero latency zero rollback；last-known match no rollback；mismatch exact earliest frame；multiple late inputs coalesce；restore pre-frame snapshot；local input/event not double-applied；metrics exact；confirmed hash convergence；too-old input fail closed。
 
@@ -171,21 +171,21 @@ RL_TEST(late_mismatch_restores_earliest_boundary_once) {
 }
 ```
 
-- [ ] **Step 2: 运行 RED**
+- [x] **Step 2: 运行 RED**
 
 运行: `cmake --build --preset msvc-debug; ctest --preset msvc-debug -R "frame_ring|rollback|convergence" --output-on-failure`
 
 预期: FAIL 于未定义 ring/session 行为。
 
-- [ ] **Step 3: 最小 GREEN**
+- [x] **Step 3: 最小 GREEN**
 
 用固定 `std::array<Slot,256>` + frame tags 实现 histories/snapshots/hashes；session 内部保存 local/remote/predicted input；ingest 只标脏，flush 一次恢复最早 boundary 并重演；event range replace；confirmed boundary 只在双方实际 input 连续时推进。
 
-- [ ] **Step 4: 独立性回归**
+- [x] **Step 4: 独立性回归**
 
 集成测试只通过 public input/packet façade 驱动两个 session，编译期禁止复制 session，运行时比较 report/replay exports。运行 focused 与 full CTest，预期全部 PASS。
 
-- [ ] **Step 5: 证据与提交**
+- [x] **Step 5: 证据与提交**
 
 记录 metric vectors 和 convergence hash，提交 `feat: implement bounded rollback sessions`。
 
