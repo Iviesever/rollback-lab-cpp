@@ -424,15 +424,15 @@ RL_TEST(property_sweep_10000_seeds_is_bounded_and_repeatable) {
 
 运行 exact 10,000 sweep；重复 identity；`rg` 审计 canonical modules 中 `chrono|random_device|float|double`，审计 peer state copying；核对 30 条 completion conditions；刷新所有受影响 regression。
 
-- [ ] **Step 6: 最终提交与远端**
+- [x] **Step 6: 最终提交与远端**
 
 确认 `git diff --check`、CTest 全绿、artifact checksums、docs 与实现一致。提交 `test: harden rollback lab release candidate`，推送 `feat/rollback-netcode-0.1`。
 
-- [ ] **Step 7: 创建 Draft PR**
+- [x] **Step 7: 创建 Draft PR**
 
 PR body 包含 product、architecture、exact base/head、test matrix/counts、10,000 seeds、UDP、sanitizer/fuzz、benchmark、viewer screenshot、limitations、AI assistance。调用 `gh pr create --draft --base main --head feat/rollback-netcode-0.1`，不 merge/tag/release。
 
-- [ ] **Step 8: 完成交付证明**
+- [x] **Step 8: 完成交付证明**
 
 重新读取 remote refs/PR、记录 ahead/behind/commit list、运行 final clean status。只有 verification matrix 全 Passed（不支持项按目标允许且证据明确）且全部 P0 条件满足后，才把目标标为 complete 并给出规定的最终报告字段。
 

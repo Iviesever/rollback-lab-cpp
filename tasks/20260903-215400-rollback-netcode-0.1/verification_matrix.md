@@ -19,9 +19,9 @@
 | V-071 | MSVC Debug and Release | configure/build/CTest logs | Passed at `8813426`: 3/3 each |
 | V-072 | Clang or GCC | configure/build/CTest logs | Clang 22.1.8 Debug/Release passed at `8813426`: 3/3 each |
 | V-073 | ASan and UBSan where supported | configure/build/CTest logs or explicit platform limitation | Clang ASan+UBSan passed 3/3 at `8813426`; Windows LSan unsupported |
-| V-074 | Clean rebuild and clean worktree | rebuild log and `git status --short` | CMake clean + 117-output rebuild passed at `8813426`; final clean pending |
+| V-074 | Clean rebuild and clean worktree | rebuild log and `git status --short` | CMake clean + 117-output rebuild passed; pre-delivery worktree clean |
 | V-075 | Benchmark schema and observations | simulation and rollback benchmark JSON | Passed at `8813426`; 100,000 ticks + 2,000-frame stress |
-| V-080 | Documentation matches implementation | documentation audit checklist | 14 required docs updated to final protocol; final link scan pending |
-| V-081 | Public remote, pushed branch, Draft PR body | GitHub URL, refs, PR number | Pending |
+| V-080 | Documentation matches implementation | documentation audit checklist | 14 required docs, JSON/replay/schema/links/placeholders all audited |
+| V-081 | Public remote, pushed branch, Draft PR body | GitHub URL, refs, PR number | Public remote, branch pushed, Draft PR #1; push/PR CI runs green |
 
 No row may be marked Passed without fresh evidence from the exact final or explicitly recorded precursor HEAD. A precursor result is rerun if later changes touch its dependency cone.
