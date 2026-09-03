@@ -299,18 +299,29 @@ auto run_udp_demo(const UdpDemoConfig& config) -> Result<UdpDemoResult> {
 
     if (!exit_a.has_value() ||
         (config.launch_peer_b && !exit_b.has_value())) {
+        const bool desync_detected =
+            std::filesystem::is_regular_file(diagnostic_a) ||
+            std::filesystem::is_regular_file(diagnostic_b);
         return Result<UdpDemoResult>::failure(
-            Error{ErrorCode::timeout, config.watchdog_milliseconds, 0U,
-                  "udp_demo_watchdog"});
+            Error{desync_detected ? ErrorCode::desync : ErrorCode::timeout,
+                  config.watchdog_milliseconds, 0U,
+                  desync_detected ? "udp_peer_desync" : "udp_demo_watchdog"});
     }
     if (exit_a.value() != 0 || !config.launch_peer_b ||
         !exit_b.has_value() || exit_b.value() != 0) {
         const bool peer_a_failed = exit_a.value() != 0;
+        const bool desync_detected =
+            std::filesystem::is_regular_file(diagnostic_a) ||
+            std::filesystem::is_regular_file(diagnostic_b);
         return Result<UdpDemoResult>::failure(
-            Error{ErrorCode::child_failure,
+            Error{desync_detected ? ErrorCode::desync
+                                  : ErrorCode::child_failure,
                   static_cast<std::uint64_t>(
                       peer_a_failed ? exit_a.value() : exit_b.value_or(-1)),
-                  0U, peer_a_failed ? "udp_peer_a_exit" : "udp_peer_b_exit"});
+                  0U, desync_detected
+                          ? "udp_peer_desync"
+                          : (peer_a_failed ? "udp_peer_a_exit"
+                                           : "udp_peer_b_exit")});
     }
 
     auto control_result = UdpSocket::bind_loopback(0U);
