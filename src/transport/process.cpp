@@ -15,6 +15,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
+#include <cerrno>
 #include <csignal>
 #include <spawn.h>
 #include <sys/wait.h>
@@ -81,24 +82,53 @@ struct ChildProcess::Impl final {
     pid_t pid{-1};
 #endif
     bool running{true};
+    std::optional<int> exit_code;
 };
 
 ChildProcess::ChildProcess(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
 
-ChildProcess::~ChildProcess() {
+void ChildProcess::cleanup() noexcept {
     if (impl_ != nullptr && impl_->running) {
         static_cast<void>(terminate());
-        static_cast<void>(wait_for(std::chrono::milliseconds{500}));
+        const auto waited = wait_for(std::chrono::milliseconds{500});
+        if (!waited.ok() || !waited.value().has_value()) {
+#if defined(_WIN32)
+            static_cast<void>(TerminateProcess(impl_->process, 125U));
+            static_cast<void>(WaitForSingleObject(impl_->process, 1'000U));
+            DWORD code{125U};
+            static_cast<void>(GetExitCodeProcess(impl_->process, &code));
+            impl_->exit_code = static_cast<int>(code);
+            impl_->running = false;
+#else
+            static_cast<void>(kill(impl_->pid, SIGKILL));
+            int status{};
+            while (waitpid(impl_->pid, &status, 0) < 0 && errno == EINTR) {
+            }
+            impl_->exit_code = WIFEXITED(status) ? WEXITSTATUS(status)
+                                                 : 128 + WTERMSIG(status);
+            impl_->running = false;
+#endif
+        }
     }
 #if defined(_WIN32)
     if (impl_ != nullptr && impl_->process != nullptr) {
         CloseHandle(impl_->process);
+        impl_->process = nullptr;
     }
 #endif
+    impl_.reset();
 }
 
+ChildProcess::~ChildProcess() { cleanup(); }
+
 ChildProcess::ChildProcess(ChildProcess&&) noexcept = default;
-auto ChildProcess::operator=(ChildProcess&&) noexcept -> ChildProcess& = default;
+auto ChildProcess::operator=(ChildProcess&& other) noexcept -> ChildProcess& {
+    if (this != &other) {
+        cleanup();
+        impl_ = std::move(other.impl_);
+    }
+    return *this;
+}
 
 auto ChildProcess::spawn(const std::filesystem::path& executable,
                          const std::vector<std::string>& arguments)
@@ -177,8 +207,7 @@ auto ChildProcess::wait_for(const std::chrono::milliseconds timeout)
             Error{ErrorCode::invalid_argument, 0U, 0U, "process_wait"});
     }
     if (!impl_->running) {
-        return Result<std::optional<int>>::failure(
-            Error{ErrorCode::invalid_argument, 0U, 0U, "process_already_waited"});
+        return Result<std::optional<int>>::success(impl_->exit_code);
     }
 #if defined(_WIN32)
     const auto bounded_timeout = static_cast<DWORD>(
@@ -199,8 +228,9 @@ auto ChildProcess::wait_for(const std::chrono::milliseconds timeout)
                   "GetExitCodeProcess"});
     }
     impl_->running = false;
+    impl_->exit_code = static_cast<int>(exit_code);
     return Result<std::optional<int>>::success(
-        std::optional<int>{static_cast<int>(exit_code)});
+        impl_->exit_code);
 #else
     const auto deadline = std::chrono::steady_clock::now() + timeout;
     for (;;) {
@@ -210,10 +240,14 @@ auto ChildProcess::wait_for(const std::chrono::milliseconds timeout)
             impl_->running = false;
             const int exit_code = WIFEXITED(status) ? WEXITSTATUS(status)
                                                     : 128 + WTERMSIG(status);
+            impl_->exit_code = exit_code;
             return Result<std::optional<int>>::success(
-                std::optional<int>{exit_code});
+                impl_->exit_code);
         }
         if (waited < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
             return Result<std::optional<int>>::failure(
                 Error{ErrorCode::child_failure, 0U, 0U, "waitpid"});
         }
@@ -236,7 +270,7 @@ auto ChildProcess::terminate() -> Result<void> {
                   "TerminateProcess"});
     }
 #else
-    if (kill(impl_->pid, SIGTERM) != 0) {
+    if (kill(impl_->pid, SIGTERM) != 0 && errno != ESRCH) {
         return Result<void>::failure(
             Error{ErrorCode::child_failure, 0U, 0U, "kill"});
     }

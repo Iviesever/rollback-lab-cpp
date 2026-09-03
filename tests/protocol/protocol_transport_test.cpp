@@ -32,8 +32,10 @@ auto sample_packet() -> Packet {
         InputFrame{FrameNumber{44U}, PlayerId::a, 44U,
                    button_mask(Button::up)},
     };
-    packet.confirmed_hash = ConfirmedHash{FrameNumber{40U},
-                                          0x1122334455667788ULL};
+    packet.confirmed_hashes = {
+        ConfirmedHash{FrameNumber{39U}, 0x0102030405060708ULL},
+        ConfirmedHash{FrameNumber{40U}, 0x1122334455667788ULL},
+    };
     return packet;
 }
 
@@ -84,6 +86,32 @@ RL_TEST(packet_codec_round_trips_all_fields) {
     RL_CHECK(decoded.value() == packet);
 }
 
+RL_TEST(packet_codec_round_trips_every_packet_type) {
+    for (const auto type : {PacketType::hello, PacketType::input,
+                            PacketType::state_hash, PacketType::goodbye}) {
+        auto packet = sample_packet();
+        packet.type = type;
+        if (type != PacketType::input) {
+            packet.inputs.clear();
+        }
+        if (type == PacketType::hello) {
+            packet.confirmed_hashes.clear();
+            packet.hello = HelloInfo{kSimulationVersion,
+                                     0xAABBCCDDEEFF0011ULL, 120U};
+        } else if (type == PacketType::goodbye) {
+            packet.confirmed_hashes.clear();
+            packet.hello.reset();
+        } else {
+            packet.hello.reset();
+        }
+        const auto encoded = encode_packet(packet);
+        RL_REQUIRE(encoded.ok());
+        const auto decoded = decode_packet(encoded.value());
+        RL_REQUIRE(decoded.ok());
+        RL_CHECK(decoded.value() == packet);
+    }
+}
+
 RL_TEST(packet_codec_rejects_every_truncation_boundary) {
     const auto encoded = encode_packet(sample_packet());
     RL_REQUIRE(encoded.ok());
@@ -121,6 +149,12 @@ RL_TEST(packet_codec_fails_closed_for_header_and_integrity_errors) {
     RL_CHECK(decode_packet(excess_count).error().code ==
              ErrorCode::capacity_exceeded);
 
+    auto excess_hash_count = encoded.value();
+    excess_hash_count[29] = static_cast<std::byte>(kMaxConfirmedHashes + 1U);
+    rewrite_crc(excess_hash_count);
+    RL_CHECK(decode_packet(excess_hash_count).error().code ==
+             ErrorCode::capacity_exceeded);
+
     auto bad_length = encoded.value();
     bad_length[30] = std::byte{0U};
     bad_length[31] = std::byte{0U};
@@ -131,6 +165,21 @@ RL_TEST(packet_codec_fails_closed_for_header_and_integrity_errors) {
     corrupted[35] ^= std::byte{0x80U};
     RL_CHECK(decode_packet(corrupted).error().code ==
              ErrorCode::integrity_mismatch);
+}
+
+RL_TEST(hello_packet_requires_versioned_scenario_contract) {
+    Packet hello{};
+    hello.type = PacketType::hello;
+    const auto missing = encode_packet(hello);
+    RL_CHECK(!missing.ok());
+    RL_CHECK(missing.error().code == ErrorCode::invalid_argument);
+
+    hello.hello = HelloInfo{kSimulationVersion, 0x123456789ABCDEF0ULL, 240U};
+    const auto encoded = encode_packet(hello);
+    RL_REQUIRE(encoded.ok());
+    const auto decoded = decode_packet(encoded.value());
+    RL_REQUIRE(decoded.ok());
+    RL_CHECK(decoded.value().hello == hello.hello);
 }
 
 RL_TEST(packet_encoder_rejects_oversized_input_window) {
@@ -204,6 +253,20 @@ RL_TEST(transport_loss_rates_are_seeded_and_declared) {
     }
 }
 
+RL_TEST(transport_burst_loss_drops_a_bounded_run) {
+    TransportConfig config{};
+    config.seed = 0xB01257U;
+    config.loss_percent = 0U;
+    config.burst_loss_percent = 100U;
+    SeededTransport transport{config};
+    for (std::uint32_t packet = 0U; packet < 4U; ++packet) {
+        RL_REQUIRE(transport.send(Endpoint::a, Endpoint::b, one_byte(1U),
+                                  LogicalTick{packet}).ok());
+    }
+    RL_CHECK(transport.metrics().dropped_loss == 4U);
+    RL_CHECK(transport.queued_packets() == 0U);
+}
+
 RL_TEST(transport_queue_overflow_and_packet_age_are_bounded) {
     TransportConfig overflow_config{};
     overflow_config.seed = 1U;
@@ -230,6 +293,61 @@ RL_TEST(transport_queue_overflow_and_packet_age_are_bounded) {
                          LogicalTick{0U}).ok());
     RL_CHECK(aged.deliver(LogicalTick{10U}).empty());
     RL_CHECK(aged.metrics().dropped_age == 1U);
+}
+
+RL_TEST(drop_oldest_policy_uses_enqueue_order_after_delivery_sort) {
+    std::uint64_t inversion_seed = 0U;
+    std::uint32_t first_delivery_tick = 0U;
+    for (std::uint64_t seed = 1U; seed <= 1'000U; ++seed) {
+        TransportConfig probe_config{};
+        probe_config.seed = seed;
+        probe_config.base_latency_ticks = 10U;
+        probe_config.jitter_ticks = 4U;
+        probe_config.reorder_percent = 100U;
+        SeededTransport probe{probe_config};
+        RL_REQUIRE(probe.send(Endpoint::a, Endpoint::b, one_byte(1U),
+                              LogicalTick{0U}).ok());
+        RL_REQUIRE(probe.send(Endpoint::a, Endpoint::b, one_byte(2U),
+                              LogicalTick{0U}).ok());
+        std::vector<Delivery> delivered;
+        for (std::uint32_t tick = 0U; tick <= 40U; ++tick) {
+            auto batch = probe.deliver(LogicalTick{tick});
+            if (delivered.empty() && !batch.empty()) {
+                first_delivery_tick = tick;
+            }
+            delivered.insert(delivered.end(), batch.begin(), batch.end());
+        }
+        if (delivered.size() == 2U &&
+            delivered.front().bytes == one_byte(2U)) {
+            inversion_seed = seed;
+            break;
+        }
+    }
+    RL_REQUIRE(inversion_seed != 0U);
+    RL_REQUIRE(first_delivery_tick > 2U);
+
+    TransportConfig config{};
+    config.seed = inversion_seed;
+    config.base_latency_ticks = 10U;
+    config.jitter_ticks = 4U;
+    config.reorder_percent = 100U;
+    config.max_queue_packets = 2U;
+    config.max_queue_bytes = 2U;
+    config.overflow_policy = QueueOverflowPolicy::drop_oldest;
+    SeededTransport transport{config};
+
+    RL_REQUIRE(transport.send(Endpoint::a, Endpoint::b, one_byte(1U),
+                              LogicalTick{0U}).ok());
+    RL_REQUIRE(transport.send(Endpoint::a, Endpoint::b, one_byte(2U),
+                              LogicalTick{0U}).ok());
+    RL_CHECK(transport.deliver(LogicalTick{first_delivery_tick - 1U}).empty());
+    RL_REQUIRE(transport.send(Endpoint::a, Endpoint::b, one_byte(3U),
+                              LogicalTick{first_delivery_tick - 1U}).ok());
+
+    const auto first_due = transport.deliver(LogicalTick{first_delivery_tick});
+    RL_REQUIRE(first_due.size() == 1U);
+    RL_CHECK(first_due.front().bytes == one_byte(2U));
+    RL_CHECK(transport.metrics().dropped_overflow == 1U);
 }
 
 RL_TEST(transport_bandwidth_defers_due_packets_without_unbounded_growth) {
@@ -265,4 +383,3 @@ RL_TEST(random_protocol_bytes_never_escape_typed_decode_result) {
         }
     }
 }
-

@@ -65,12 +65,20 @@ void RollbackSession::mark_dirty(const FrameNumber frame) {
         frame_before(frame, earliest_dirty_.value())) {
         earliest_dirty_ = frame;
     }
+    if (frame_before(frame, metrics_.confirmed_frame)) {
+        metrics_.confirmed_frame = frame;
+    }
 }
 
 void RollbackSession::update_confirmation() {
     auto boundary = metrics_.confirmed_frame;
     while (storage_->local_inputs.contains(boundary) &&
            storage_->remote_inputs.contains(boundary)) {
+        if (earliest_dirty_.has_value() &&
+            (boundary == earliest_dirty_.value() ||
+             frame_before(earliest_dirty_.value(), boundary))) {
+            break;
+        }
         boundary = next_frame(boundary);
     }
     metrics_.confirmed_frame = boundary;

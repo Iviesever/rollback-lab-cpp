@@ -3,6 +3,7 @@
 #include <rollback_lab/core/error.hpp>
 #include <rollback_lab/replay/replay.hpp>
 #include <rollback_lab/report/run_report.hpp>
+#include <rollback_lab/report/desync.hpp>
 #include <rollback_lab/report/trace.hpp>
 #include <rollback_lab/transport/seeded_transport.hpp>
 
@@ -24,6 +25,7 @@ struct ScenarioArtifacts final {
     RunReport report{};
     Replay replay{};
     Trace trace{};
+    std::optional<DesyncDiagnostic> desync_diagnostic;
 };
 
 [[nodiscard]] auto run_seeded_scenario(const ScenarioRunConfig& config)

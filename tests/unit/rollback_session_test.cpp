@@ -86,6 +86,27 @@ RL_TEST(late_mismatches_coalesce_at_earliest_dirty_boundary) {
     RL_CHECK(report.metrics.maximum_rollback_depth == 7U);
 }
 
+RL_TEST(dirty_input_does_not_advance_confirmation_before_resimulation) {
+    RollbackSession session{SessionConfig{PlayerId::a}};
+    for (std::uint32_t frame = 0U; frame < 5U; ++frame) {
+        require_advance(session, input(FrameNumber{frame}, PlayerId::a));
+    }
+    RL_REQUIRE(session.ingest_remote(input(FrameNumber{0U}, PlayerId::b)).ok());
+    RL_REQUIRE(session.ingest_remote(input(FrameNumber{1U}, PlayerId::b)).ok());
+    RL_CHECK(session.report().metrics.confirmed_frame == FrameNumber{2U});
+
+    RL_REQUIRE(session.ingest_remote(input(FrameNumber{2U}, PlayerId::b,
+                                           button_mask(Button::left))).ok());
+    RL_CHECK(session.report().metrics.confirmed_frame == FrameNumber{2U});
+    RL_CHECK(!session.hash_at(FrameNumber{3U}).ok());
+
+    const auto correction = session.flush_corrections();
+    RL_REQUIRE(correction.ok());
+    RL_CHECK(correction.value().performed);
+    RL_CHECK(session.report().metrics.confirmed_frame == FrameNumber{3U});
+    RL_CHECK(session.hash_at(FrameNumber{3U}).ok());
+}
+
 RL_TEST(input_beyond_window_fails_closed_but_boundary_is_accepted) {
     RollbackSession boundary{SessionConfig{PlayerId::a}};
     for (std::uint32_t frame = 0; frame < 120U; ++frame) {

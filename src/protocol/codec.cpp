@@ -16,7 +16,7 @@ constexpr std::size_t header_size = 32U;
 constexpr std::size_t checksum_size = 4U;
 constexpr std::size_t input_record_size = 10U;
 constexpr std::size_t hash_record_size = 12U;
-constexpr std::uint8_t hash_flag = 0x01U;
+constexpr std::size_t hello_record_size = 16U;
 
 auto valid_packet_type(const PacketType type) noexcept -> bool {
     return type == PacketType::hello || type == PacketType::input ||
@@ -59,12 +59,34 @@ auto encode_packet(const Packet& packet) -> Result<std::vector<std::byte>> {
             Error{ErrorCode::capacity_exceeded, packet.inputs.size(), 28U,
                   "input_count"});
     }
+    if (packet.confirmed_hashes.size() > kMaxConfirmedHashes) {
+        return Result<std::vector<std::byte>>::failure(
+            Error{ErrorCode::capacity_exceeded, packet.confirmed_hashes.size(),
+                  29U, "hash_count"});
+    }
+    if ((packet.type == PacketType::hello) != packet.hello.has_value() ||
+        (packet.type == PacketType::hello &&
+         (!packet.inputs.empty() || !packet.confirmed_hashes.empty()))) {
+        return Result<std::vector<std::byte>>::failure(
+            Error{ErrorCode::invalid_argument,
+                  static_cast<std::uint64_t>(packet.type), 0U,
+                  "hello_payload"});
+    }
     for (const auto& input : packet.inputs) {
         if (input.player != packet.sender) {
             return Result<std::vector<std::byte>>::failure(
                 Error{ErrorCode::invalid_argument,
                       static_cast<std::uint64_t>(input.player), 0U,
                       "input_sender"});
+        }
+    }
+    for (std::size_t index = 1U; index < packet.confirmed_hashes.size(); ++index) {
+        if (!frame_before(packet.confirmed_hashes[index - 1U].frame,
+                          packet.confirmed_hashes[index].frame)) {
+            return Result<std::vector<std::byte>>::failure(
+                Error{ErrorCode::invalid_argument,
+                      packet.confirmed_hashes[index].frame.value, 0U,
+                      "hash_order"});
         }
     }
 
@@ -79,8 +101,7 @@ auto encode_packet(const Packet& packet) -> Result<std::vector<std::byte>> {
     writer.append_little_endian(packet.confirmed_frame.value);
     writer.append_little_endian(static_cast<std::uint8_t>(packet.inputs.size()));
     writer.append_little_endian(
-        static_cast<std::uint8_t>(packet.confirmed_hash.has_value() ? hash_flag
-                                                                   : 0U));
+        static_cast<std::uint8_t>(packet.confirmed_hashes.size()));
     constexpr std::size_t payload_length_offset = 30U;
     writer.append_little_endian(std::uint16_t{0U});
     const auto payload_start = writer.size();
@@ -91,9 +112,14 @@ auto encode_packet(const Packet& packet) -> Result<std::vector<std::byte>> {
         writer.append_little_endian(input.buttons);
         writer.append_little_endian(input.sequence);
     }
-    if (packet.confirmed_hash.has_value()) {
-        writer.append_little_endian(packet.confirmed_hash->frame.value);
-        writer.append_little_endian(packet.confirmed_hash->hash);
+    for (const auto& hash : packet.confirmed_hashes) {
+        writer.append_little_endian(hash.frame.value);
+        writer.append_little_endian(hash.hash);
+    }
+    if (packet.hello.has_value()) {
+        writer.append_little_endian(packet.hello->simulation_version);
+        writer.append_little_endian(packet.hello->scenario_config_digest);
+        writer.append_little_endian(packet.hello->target_frame);
     }
 
     const auto payload_size = writer.size() - payload_start;
@@ -161,24 +187,25 @@ auto decode_packet(const std::span<const std::byte> bytes) -> Result<Packet> {
     const auto confirmed =
         reader.read_little_endian<std::uint32_t>("confirmed_frame");
     const auto count = reader.read_little_endian<std::uint8_t>("input_count");
-    const auto flags = reader.read_little_endian<std::uint8_t>("flags");
+    const auto hash_count = reader.read_little_endian<std::uint8_t>("hash_count");
     const auto payload_length =
         reader.read_little_endian<std::uint16_t>("payload_length");
     if (!sequence.ok() || !ack.ok() || !scenario.ok() || !confirmed.ok() ||
-        !count.ok() || !flags.ok() || !payload_length.ok()) {
+        !count.ok() || !hash_count.ok() || !payload_length.ok()) {
         return decode_error(ErrorCode::truncated_data, reader.offset(), "header");
     }
     if (count.value() > kMaxRedundantInputs) {
         return decode_error(ErrorCode::capacity_exceeded, 28U, "input_count",
                             count.value());
     }
-    if ((flags.value() & static_cast<std::uint8_t>(~hash_flag)) != 0U) {
-        return decode_error(ErrorCode::invalid_argument, 29U, "flags",
-                            flags.value());
+    if (hash_count.value() > kMaxConfirmedHashes) {
+        return decode_error(ErrorCode::capacity_exceeded, 29U, "hash_count",
+                            hash_count.value());
     }
     const auto expected_payload =
         static_cast<std::size_t>(count.value()) * input_record_size +
-        ((flags.value() & hash_flag) != 0U ? hash_record_size : 0U);
+        static_cast<std::size_t>(hash_count.value()) * hash_record_size +
+        (type == PacketType::hello ? hello_record_size : 0U);
     if (payload_length.value() != expected_payload ||
         header_size + expected_payload + checksum_size != bytes.size()) {
         return decode_error(ErrorCode::invalid_length, 30U, "payload_length",
@@ -215,7 +242,9 @@ auto decode_packet(const std::span<const std::byte> bytes) -> Result<Packet> {
             FrameNumber{frame.value()}, static_cast<PlayerId>(player.value()),
             input_sequence.value(), buttons.value()});
     }
-    if ((flags.value() & hash_flag) != 0U) {
+    packet.confirmed_hashes.reserve(hash_count.value());
+    FrameNumber previous_hash_frame{};
+    for (std::uint8_t index = 0U; index < hash_count.value(); ++index) {
         const auto hash_frame =
             reader.read_little_endian<std::uint32_t>("hash_frame");
         const auto hash = reader.read_little_endian<std::uint64_t>("hash");
@@ -223,8 +252,32 @@ auto decode_packet(const std::span<const std::byte> bytes) -> Result<Packet> {
             return decode_error(ErrorCode::truncated_data, reader.offset(),
                                 "confirmed_hash");
         }
-        packet.confirmed_hash =
-            ConfirmedHash{FrameNumber{hash_frame.value()}, hash.value()};
+        const auto frame = FrameNumber{hash_frame.value()};
+        if (index != 0U && !frame_before(previous_hash_frame, frame)) {
+            return decode_error(ErrorCode::invalid_argument,
+                                reader.offset() - hash_record_size,
+                                "hash_order", frame.value);
+        }
+        previous_hash_frame = frame;
+        packet.confirmed_hashes.push_back(ConfirmedHash{frame, hash.value()});
+    }
+    if (type == PacketType::hello) {
+        if (count.value() != 0U || hash_count.value() != 0U) {
+            return decode_error(ErrorCode::invalid_argument, header_size,
+                                "hello_payload");
+        }
+        const auto simulation_version =
+            reader.read_little_endian<std::uint32_t>("simulation_version");
+        const auto digest =
+            reader.read_little_endian<std::uint64_t>("scenario_config_digest");
+        const auto target =
+            reader.read_little_endian<std::uint32_t>("target_frame");
+        if (!simulation_version.ok() || !digest.ok() || !target.ok()) {
+            return decode_error(ErrorCode::truncated_data, reader.offset(),
+                                "hello_payload");
+        }
+        packet.hello = HelloInfo{simulation_version.value(), digest.value(),
+                                 target.value()};
     }
     if (reader.remaining() != 0U) {
         return decode_error(ErrorCode::invalid_length, reader.offset(),
@@ -234,4 +287,3 @@ auto decode_packet(const std::span<const std::byte> bytes) -> Result<Packet> {
 }
 
 }  // namespace rollback_lab
-

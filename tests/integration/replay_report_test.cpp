@@ -117,6 +117,9 @@ RL_TEST(canonical_report_has_fixed_order_and_timing_is_not_identity) {
     const auto first_identity = report_identity(report);
     const auto first = canonical_json(report);
     RL_REQUIRE(first.ok());
+    RL_CHECK(first.value().find("\"pcg32_version\":1") != std::string::npos);
+    RL_CHECK(first.value().find("\"overflow_policy\":\"fail\"") !=
+             std::string::npos);
     std::size_t position = find_after(first.value(), "\"git_sha\"", 0U);
     position = find_after(first.value(), "\"build_type\"", position);
     position = find_after(first.value(), "\"simulation_version\"", position);
@@ -130,6 +133,9 @@ RL_TEST(canonical_report_has_fixed_order_and_timing_is_not_identity) {
     const auto second = canonical_json(report);
     RL_REQUIRE(second.ok());
     RL_CHECK(first.value() != second.value());
+
+    report.transport_config.overflow_policy = QueueOverflowPolicy::drop_oldest;
+    RL_CHECK(report_identity(report) != first_identity);
 }
 
 RL_TEST(desync_requires_confirmed_hashes_and_reports_first_divergence) {
@@ -221,4 +227,67 @@ RL_TEST(seeded_scenario_converges_via_packets_and_replay_is_identical) {
              canonical_json(second.value().report).value());
     RL_CHECK(canonical_json(first.value().trace).value() ==
              canonical_json(second.value().trace).value());
+}
+
+RL_TEST(zero_latency_packet_scenario_has_no_prediction_or_rollback) {
+    ScenarioRunConfig config{};
+    config.scenario_seed = 99U;
+    config.transport_seed = 100U;
+    config.frame_count = 120U;
+    config.transport.seed = config.transport_seed;
+    const auto run = run_seeded_scenario(config);
+    RL_REQUIRE(run.ok());
+    RL_CHECK(run.value().report.success);
+    RL_CHECK(run.value().report.rollback_count == 0U);
+    RL_CHECK(run.value().report.resimulated_frames == 0U);
+    RL_CHECK(run.value().report.predicted_input_count == 0U);
+    RL_CHECK(run.value().report.late_input_count == 0U);
+    RL_CHECK(run.value().report.confirmed_frame == FrameNumber{120U});
+}
+
+RL_TEST(packet_driven_desync_reports_the_actual_earliest_confirmed_boundary) {
+    std::uint64_t selected_seed = 0U;
+    FrameNumber expected_divergence{};
+    for (std::uint64_t seed = 1U; seed <= 64U && selected_seed == 0U; ++seed) {
+        auto canonical = make_initial_world();
+        auto biased = canonical;
+        for (std::uint32_t frame = 0U; frame < 360U; ++frame) {
+            const auto number = FrameNumber{frame};
+            const InputPair inputs{scripted_input(seed, number, PlayerId::a),
+                                   scripted_input(seed, number, PlayerId::b)};
+            const auto next_canonical = simulate_frame(canonical, number, inputs);
+            const auto next_biased = simulate_frame(
+                biased, number, inputs, SimulationVariant::damage_bias);
+            RL_REQUIRE(next_canonical.ok());
+            RL_REQUIRE(next_biased.ok());
+            canonical = next_canonical.value();
+            biased = next_biased.value();
+            if (hash_canonical(canonical) != hash_canonical(biased)) {
+                selected_seed = seed;
+                expected_divergence = canonical.frame;
+                break;
+            }
+        }
+    }
+    RL_REQUIRE(selected_seed != 0U);
+
+    ScenarioRunConfig config{};
+    config.scenario_seed = selected_seed;
+    config.transport_seed = 0xD35A7CU;
+    config.frame_count = 360U;
+    config.peer_b_variant = SimulationVariant::damage_bias;
+    config.transport.base_latency_ticks = 5U;
+    config.transport.jitter_ticks = 2U;
+    config.transport.loss_percent = 5U;
+    config.transport.reorder_percent = 10U;
+    config.transport.duplicate_percent = 5U;
+    const auto run = run_seeded_scenario(config);
+    RL_REQUIRE(run.ok());
+    RL_CHECK(!run.value().report.success);
+    RL_CHECK(run.value().report.desync_result == "detected");
+    RL_REQUIRE(run.value().desync_diagnostic.has_value());
+    RL_CHECK(run.value().desync_diagnostic->earliest_divergent_frame ==
+             expected_divergence);
+    RL_REQUIRE(run.value().trace.desync.has_value());
+    RL_CHECK(run.value().trace.desync->frame == expected_divergence);
 }

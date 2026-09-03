@@ -32,8 +32,8 @@ public:
 private:
     struct Impl;
     explicit ChildProcess(std::unique_ptr<Impl> impl);
+    void cleanup() noexcept;
     std::unique_ptr<Impl> impl_;
 };
 
 }  // namespace rollback_lab
-

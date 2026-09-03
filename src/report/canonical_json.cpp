@@ -66,6 +66,10 @@ auto packet_kind_text(const PacketTraceKind kind) -> const char* {
     return "unknown";
 }
 
+auto overflow_policy_text(const QueueOverflowPolicy policy) -> const char* {
+    return policy == QueueOverflowPolicy::fail ? "fail" : "drop_oldest";
+}
+
 void write_player(std::ostringstream& output, const PlayerState& player) {
     output << "{\"id\":\"" << (player.id == PlayerId::a ? "A" : "B")
            << "\",\"x\":" << player.x
@@ -83,6 +87,7 @@ auto identity_material(const RunReport& report) -> std::string {
     std::ostringstream output;
     output << report.simulation_version << '|'
            << report.protocol_version << '|'
+           << report.pcg32_version << '|'
            << report.scenario_seed << '|'
            << report.transport_seed << '|'
            << report.frame_count << '|'
@@ -96,6 +101,8 @@ auto identity_material(const RunReport& report) -> std::string {
            << report.transport_config.max_queue_bytes << '|'
            << report.transport_config.bandwidth_bytes_per_tick << '|'
            << report.transport_config.max_packet_age_ticks << '|'
+           << static_cast<std::uint32_t>(report.transport_config.overflow_policy)
+           << '|'
            << report.transport_metrics.sent_packets << '|'
            << report.transport_metrics.delivered_packets << '|'
            << report.transport_metrics.dropped_loss << '|'
@@ -142,6 +149,7 @@ auto canonical_json(const RunReport& report) -> Result<std::string> {
            << "  \"os\":\"" << escaped(report.os) << "\",\n"
            << "  \"simulation_version\":" << report.simulation_version << ",\n"
            << "  \"protocol_version\":" << report.protocol_version << ",\n"
+           << "  \"pcg32_version\":" << report.pcg32_version << ",\n"
            << "  \"scenario_seed\":" << report.scenario_seed << ",\n"
            << "  \"transport_seed\":" << report.transport_seed << ",\n"
            << "  \"frame_count\":" << report.frame_count << ",\n"
@@ -160,7 +168,10 @@ auto canonical_json(const RunReport& report) -> Result<std::string> {
            << ",\"bandwidth_bytes_per_tick\":"
            << report.transport_config.bandwidth_bytes_per_tick
            << ",\"max_packet_age_ticks\":"
-           << report.transport_config.max_packet_age_ticks << "},\n"
+           << report.transport_config.max_packet_age_ticks
+           << ",\"overflow_policy\":\""
+           << overflow_policy_text(report.transport_config.overflow_policy)
+           << "\"},\n"
            << "  \"sent_packets\":" << report.transport_metrics.sent_packets << ",\n"
            << "  \"delivered_packets\":"
            << report.transport_metrics.delivered_packets << ",\n"
@@ -306,7 +317,10 @@ auto canonical_json(const Trace& trace) -> Result<std::string> {
                << ",\"rollback_from\":" << rollback.rollback_from.value
                << ",\"depth\":" << rollback.depth << '}';
     }
-    output << "]";
+    output << "],\"omitted_frame_samples\":" << trace.omitted_frame_samples
+           << ",\"omitted_packet_events\":" << trace.omitted_packet_events
+           << ",\"omitted_rollback_events\":"
+           << trace.omitted_rollback_events;
     if (trace.desync.has_value()) {
         output << ",\"desync\":{\"frame\":" << trace.desync->frame.value
                << ",\"local_hash\":\"" << hash_text(trace.desync->local_hash)
@@ -320,4 +334,3 @@ auto canonical_json(const Trace& trace) -> Result<std::string> {
 }
 
 }  // namespace rollback_lab
-

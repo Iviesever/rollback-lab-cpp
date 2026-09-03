@@ -178,6 +178,26 @@ RL_TEST(projectiles_damage_and_defeat_scores_then_respawns) {
     RL_CHECK(world.players[1].y == kPlayerSpawnY);
 }
 
+RL_TEST(projectiles_are_processed_in_ascending_stable_id_order) {
+    auto world = make_initial_world();
+    world.players[0].x = 100 * kSubunitsPerWorldUnit;
+    world.players[0].y = 100 * kSubunitsPerWorldUnit;
+    world.players[0].hp = kProjectileDamage;
+    world.projectiles[0] = ProjectileState{
+        true, 10U, PlayerId::b, world.players[0].x, world.players[0].y,
+        0, 0, 10U};
+    world.projectiles[1] = ProjectileState{
+        true, 5U, PlayerId::b, world.players[0].x, world.players[0].y,
+        0, 0, 10U};
+
+    const auto next = simulate_frame(world, FrameNumber{0U},
+                                     no_input(FrameNumber{0U}));
+    RL_REQUIRE(next.ok());
+    RL_CHECK(next.value().players[1].score == 1U);
+    RL_CHECK(next.value().projectiles[0].active);
+    RL_CHECK(!next.value().projectiles[1].active);
+}
+
 RL_TEST(canonical_serialization_has_stable_little_endian_prefix) {
     const auto world = make_initial_world();
     const auto bytes = serialize_canonical(world);

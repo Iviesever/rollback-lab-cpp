@@ -2,6 +2,7 @@
 
 #include <rollback_lab/core/error.hpp>
 #include <rollback_lab/simulation/input.hpp>
+#include <rollback_lab/version.hpp>
 
 #include <cstdint>
 #include <filesystem>
@@ -16,6 +17,7 @@ struct PeerConfig final {
     std::uint64_t transport_seed{2U};
     std::uint32_t frame_count{120U};
     std::uint16_t protocol_version_override{1U};
+    std::uint32_t simulation_version_override{kSimulationVersion};
     std::uint32_t handshake_timeout_milliseconds{1'000U};
     std::uint32_t run_timeout_milliseconds{4'000U};
     std::filesystem::path report_path;
@@ -25,4 +27,3 @@ struct PeerConfig final {
 [[nodiscard]] auto run_peer(const PeerConfig& config) -> Result<int>;
 
 }  // namespace rollback_lab
-

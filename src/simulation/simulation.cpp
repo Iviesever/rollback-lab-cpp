@@ -190,7 +190,23 @@ auto simulate_frame(const WorldState& before,
         }
     }
 
-    for (auto& projectile : world.projectiles) {
+    std::array<std::size_t, kMaxProjectiles> projectile_order{};
+    std::size_t projectile_count{};
+    for (std::size_t index = 0U; index < world.projectiles.size(); ++index) {
+        if (world.projectiles[index].active) {
+            projectile_order[projectile_count++] = index;
+        }
+    }
+    std::sort(projectile_order.begin(),
+              projectile_order.begin() +
+                  static_cast<std::ptrdiff_t>(projectile_count),
+              [&world](const std::size_t left, const std::size_t right) {
+                  const auto left_id = world.projectiles[left].stable_id;
+                  const auto right_id = world.projectiles[right].stable_id;
+                  return left_id == right_id ? left < right : left_id < right_id;
+              });
+    for (std::size_t order = 0U; order < projectile_count; ++order) {
+        auto& projectile = world.projectiles[projectile_order[order]];
         if (!projectile.active) {
             continue;
         }
@@ -261,4 +277,3 @@ auto hash_canonical(const WorldState& state) -> StateHash {
 }
 
 }  // namespace rollback_lab
-

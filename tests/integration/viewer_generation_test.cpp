@@ -79,3 +79,9 @@ RL_TEST(viewer_writer_rejects_empty_trace_and_writes_valid_html) {
     RL_CHECK(!error);
 }
 
+RL_TEST(trace_sampling_interval_reserves_the_initial_frame_and_stays_bounded) {
+    RL_CHECK(trace_sample_interval(1U) == 1U);
+    RL_CHECK(trace_sample_interval(9'999U) == 1U);
+    RL_CHECK(trace_sample_interval(10'000U) == 2U);
+    RL_CHECK(trace_sample_interval(1'000'000U) == 101U);
+}

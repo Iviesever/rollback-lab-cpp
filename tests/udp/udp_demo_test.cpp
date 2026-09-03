@@ -1,6 +1,7 @@
 #include "test_framework.hpp"
 
 #include <rollback_lab/transport/udp_socket.hpp>
+#include <rollback_lab/transport/process.hpp>
 #include <rollback_lab/udp/demo.hpp>
 
 #include <filesystem>
@@ -108,3 +109,32 @@ RL_TEST(udp_demo_protocol_mismatch_returns_nonzero_and_reaps_children) {
     clean(output);
 }
 
+RL_TEST(udp_demo_simulation_version_mismatch_returns_nonzero) {
+    const auto output = temp_output("rollback_lab_udp_simulation_mismatch");
+    clean(output);
+    UdpDemoConfig config{};
+    config.executable_path = executable_path();
+    config.output_directory = output;
+    config.frame_count = 30U;
+    config.watchdog_milliseconds = 1'200U;
+    config.peer_b_simulation_version = 99U;
+    const auto result = run_udp_demo(config);
+    RL_CHECK(!result.ok());
+    RL_CHECK(result.error().code == ErrorCode::child_failure ||
+             result.error().code == ErrorCode::timeout);
+    clean(output);
+}
+
+RL_TEST(child_process_wait_is_idempotent_after_reap) {
+    auto child_result = ChildProcess::spawn(executable_path(), {"--help"});
+    RL_REQUIRE(child_result.ok());
+    auto child = std::move(child_result.value());
+    const auto first = child.wait_for(std::chrono::milliseconds{2'000});
+    RL_REQUIRE(first.ok());
+    RL_REQUIRE(first.value().has_value());
+    RL_CHECK(first.value().value() == 0);
+    const auto repeated = child.wait_for(std::chrono::milliseconds{0});
+    RL_REQUIRE(repeated.ok());
+    RL_REQUIRE(repeated.value().has_value());
+    RL_CHECK(repeated.value().value() == 0);
+}

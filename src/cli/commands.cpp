@@ -405,13 +405,14 @@ auto peer_command(const std::span<const std::string> arguments) -> int {
     const auto transport_seed = required_u32(arguments, "--transport-seed");
     const auto frames = required_u32(arguments, "--frames");
     const auto protocol = required_u32(arguments, "--protocol-version");
+    const auto simulation = required_u32(arguments, "--simulation-version");
     const auto handshake = required_u32(arguments, "--handshake-ms");
     const auto run_timeout = required_u32(arguments, "--run-ms");
     const auto report = option_value(arguments, "--report");
     const auto replay = option_value(arguments, "--replay");
     if ((id != "A" && id != "B") || !listen_port.ok() ||
         !relay_port.ok() || !scenario_seed.ok() || !transport_seed.ok() ||
-        !frames.ok() || !protocol.ok() || !handshake.ok() ||
+        !frames.ok() || !protocol.ok() || !simulation.ok() || !handshake.ok() ||
         !run_timeout.ok() || report.empty() || replay.empty() ||
         listen_port.value() > 65'535U || relay_port.value() > 65'535U ||
         protocol.value() > 65'535U) {
@@ -426,6 +427,7 @@ auto peer_command(const std::span<const std::string> arguments) -> int {
     config.frame_count = frames.value();
     config.protocol_version_override =
         static_cast<std::uint16_t>(protocol.value());
+    config.simulation_version_override = simulation.value();
     config.handshake_timeout_milliseconds = handshake.value();
     config.run_timeout_milliseconds = run_timeout.value();
     config.report_path = report;

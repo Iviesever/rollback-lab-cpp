@@ -1,6 +1,8 @@
 #include <rollback_lab/udp/peer.hpp>
 
 #include <rollback_lab/netcode/session.hpp>
+#include <rollback_lab/core/hash.hpp>
+#include <rollback_lab/protocol/bytes.hpp>
 #include <rollback_lab/protocol/codec.hpp>
 #include <rollback_lab/protocol/crc32.hpp>
 #include <rollback_lab/protocol/sequence_window.hpp>
@@ -38,12 +40,52 @@ auto remote_id(const PlayerId local) -> PlayerId {
     return local == PlayerId::a ? PlayerId::b : PlayerId::a;
 }
 
+auto scenario_config_digest(const PeerConfig& config) -> StateHash {
+    ByteWriter bytes;
+    bytes.append_little_endian(config.scenario_seed);
+    bytes.append_little_endian(config.frame_count);
+    bytes.append_little_endian(config.simulation_version_override);
+    bytes.append_little_endian(kProtocolVersion);
+    return fnv1a64(bytes.bytes());
+}
+
+auto valid_hello(const PeerConfig& config, const Packet& packet)
+    -> Result<void> {
+    if (packet.type != PacketType::hello ||
+        packet.sender != remote_id(config.id) ||
+        packet.scenario_id != config.scenario_seed || !packet.hello.has_value()) {
+        return Result<void>::failure(
+            Error{ErrorCode::invalid_argument, packet.scenario_id, 0U,
+                  "udp_hello_identity"});
+    }
+    if (packet.hello->simulation_version != kSimulationVersion) {
+        return Result<void>::failure(
+            Error{ErrorCode::unsupported_version,
+                  packet.hello->simulation_version, 0U,
+                  "udp_simulation_version"});
+    }
+    PeerConfig expected = config;
+    expected.simulation_version_override = kSimulationVersion;
+    if (packet.hello->target_frame != config.frame_count ||
+        packet.hello->scenario_config_digest !=
+            scenario_config_digest(expected)) {
+        return Result<void>::failure(
+            Error{ErrorCode::invalid_argument,
+                  packet.hello->scenario_config_digest, 0U,
+                  "udp_scenario_config"});
+    }
+    return Result<void>::success();
+}
+
 auto encode_hello(const PeerConfig& config) -> Result<std::vector<std::byte>> {
     Packet hello{};
     hello.type = PacketType::hello;
     hello.sender = config.id;
     hello.sequence = 1U;
     hello.scenario_id = config.scenario_seed;
+    hello.hello = HelloInfo{config.simulation_version_override,
+                            scenario_config_digest(config),
+                            config.frame_count};
     const auto encoded = encode_packet(hello);
     if (!encoded.ok()) {
         return encoded;
@@ -87,9 +129,8 @@ auto wait_for_handshake(const PeerConfig& config, UdpSocket& socket)
         if (!decoded.ok()) {
             return Result<void>::failure(decoded.error());
         }
-        if (decoded.value().type == PacketType::hello &&
-            decoded.value().sender == remote_id(config.id) &&
-            decoded.value().scenario_id == config.scenario_seed) {
+        const auto validated = valid_hello(config, decoded.value());
+        if (validated.ok()) {
             const auto acknowledged =
                 socket.send_loopback(config.relay_port, hello.value());
             if (!acknowledged.ok()) {
@@ -97,6 +138,7 @@ auto wait_for_handshake(const PeerConfig& config, UdpSocket& socket)
             }
             return Result<void>::success();
         }
+        return validated;
     }
     return Result<void>::failure(
         Error{ErrorCode::timeout, config.handshake_timeout_milliseconds, 0U,
@@ -108,6 +150,24 @@ auto input_window(const std::vector<InputFrame>& history)
     const auto count = std::min(history.size(), kMaxRedundantInputs);
     return std::vector<InputFrame>{
         history.end() - static_cast<std::ptrdiff_t>(count), history.end()};
+}
+
+auto confirmed_hash_window(const RollbackSession& session)
+    -> std::vector<ConfirmedHash> {
+    const auto confirmed = session.report().metrics.confirmed_frame;
+    std::vector<ConfirmedHash> hashes;
+    hashes.reserve(kMaxConfirmedHashes);
+    for (std::uint32_t offset = 0U; offset < kMaxConfirmedHashes; ++offset) {
+        const auto frame = FrameNumber{
+            static_cast<std::uint32_t>(confirmed.value - offset)};
+        const auto hash = session.hash_at(frame);
+        if (!hash.ok()) {
+            break;
+        }
+        hashes.push_back(ConfirmedHash{frame, hash.value()});
+    }
+    std::reverse(hashes.begin(), hashes.end());
+    return hashes;
 }
 
 auto send_inputs(const PeerConfig& config,
@@ -122,11 +182,7 @@ auto send_inputs(const PeerConfig& config,
     packet.scenario_id = config.scenario_seed;
     packet.confirmed_frame = report.metrics.confirmed_frame;
     packet.inputs = input_window(runtime.local_history);
-    const auto hash = runtime.session.hash_at(report.metrics.confirmed_frame);
-    if (hash.ok()) {
-        packet.confirmed_hash =
-            ConfirmedHash{report.metrics.confirmed_frame, hash.value()};
-    }
+    packet.confirmed_hashes = confirmed_hash_window(runtime.session);
     const auto encoded = encode_packet(packet);
     if (!encoded.ok()) {
         return Result<void>::failure(encoded.error());
@@ -158,7 +214,9 @@ auto receive_one(const PeerConfig& config,
                   "peer_packet_identity"});
     }
     if (packet.type == PacketType::hello) {
-        return Result<bool>::success(true);
+        const auto validated = valid_hello(config, packet);
+        return validated.ok() ? Result<bool>::success(true)
+                              : Result<bool>::failure(validated.error());
     }
     if (packet.type != PacketType::input) {
         return Result<bool>::failure(
@@ -185,18 +243,17 @@ auto receive_one(const PeerConfig& config,
     if (!corrected.ok()) {
         return Result<bool>::failure(corrected.error());
     }
-    if (packet.confirmed_hash.has_value()) {
-        const auto local = runtime.session.hash_at(packet.confirmed_hash->frame);
+    for (const auto& remote_hash : packet.confirmed_hashes) {
+        const auto local = runtime.session.hash_at(remote_hash.frame);
         if (local.ok()) {
-            if (local.value() != packet.confirmed_hash->hash) {
+            if (local.value() != remote_hash.hash) {
                 return Result<bool>::failure(
-                    Error{ErrorCode::desync, packet.confirmed_hash->hash,
-                          packet.confirmed_hash->frame.value,
+                    Error{ErrorCode::desync, remote_hash.hash,
+                          remote_hash.frame.value,
                           "udp_confirmed_hash"});
             }
-            if (packet.confirmed_hash->frame ==
-                FrameNumber{config.frame_count}) {
-                runtime.remote_final_hash = packet.confirmed_hash->hash;
+            if (remote_hash.frame == FrameNumber{config.frame_count}) {
+                runtime.remote_final_hash = remote_hash.hash;
             }
         }
     }

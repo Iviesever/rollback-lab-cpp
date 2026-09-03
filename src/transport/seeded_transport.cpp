@@ -53,8 +53,13 @@ auto SeededTransport::ensure_capacity(const std::size_t packet_count,
                   "transport_queue"});
     }
     while (exceeds() && !queue_.empty()) {
-        queued_bytes_ -= queue_.front().bytes.size();
-        queue_.erase(queue_.begin());
+        const auto oldest = std::min_element(
+            queue_.begin(), queue_.end(),
+            [](const Scheduled& left, const Scheduled& right) {
+                return left.ordinal < right.ordinal;
+            });
+        queued_bytes_ -= oldest->bytes.size();
+        queue_.erase(oldest);
         ++metrics_.dropped_overflow;
     }
     if (exceeds()) {

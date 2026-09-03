@@ -83,7 +83,8 @@ auto peer_arguments(const UdpDemoConfig& config,
                     const std::uint16_t relay_port,
                     const std::filesystem::path& report,
                     const std::filesystem::path& replay,
-                    const std::uint16_t protocol_version)
+                    const std::uint16_t protocol_version,
+                    const std::uint32_t simulation_version)
     -> std::vector<std::string> {
     const auto handshake = std::max<std::uint32_t>(
         200U, std::min<std::uint32_t>(1'000U,
@@ -96,6 +97,7 @@ auto peer_arguments(const UdpDemoConfig& config,
         "--transport-seed", number(config.transport_seed),
         "--frames", number(config.frame_count),
         "--protocol-version", number(protocol_version),
+        "--simulation-version", number(simulation_version),
         "--handshake-ms", number(handshake),
         "--run-ms", number(config.watchdog_milliseconds),
         "--report", report.string(),
@@ -236,7 +238,8 @@ auto run_udp_demo(const UdpDemoConfig& config) -> Result<UdpDemoResult> {
         config.executable_path,
         peer_arguments(config, PlayerId::a, peer_a_port, relay_port,
                        report_a, replay_a,
-                       static_cast<std::uint16_t>(kProtocolVersion)));
+                       static_cast<std::uint16_t>(kProtocolVersion),
+                       kSimulationVersion));
     if (!peer_a_result.ok()) {
         return Result<UdpDemoResult>::failure(peer_a_result.error());
     }
@@ -247,7 +250,8 @@ auto run_udp_demo(const UdpDemoConfig& config) -> Result<UdpDemoResult> {
             config.executable_path,
             peer_arguments(config, PlayerId::b, peer_b_port, relay_port,
                            report_b, replay_b,
-                           config.peer_b_protocol_version));
+                           config.peer_b_protocol_version,
+                           config.peer_b_simulation_version));
         if (!peer_b_result.ok()) {
             return Result<UdpDemoResult>::failure(peer_b_result.error());
         }

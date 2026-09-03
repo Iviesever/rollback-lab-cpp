@@ -61,7 +61,12 @@ struct Trace final {
     std::vector<PacketTraceEvent> packets;
     std::vector<RollbackTraceEvent> rollbacks;
     std::optional<TraceDesyncMarker> desync;
+    std::uint64_t omitted_frame_samples{};
+    std::uint64_t omitted_packet_events{};
+    std::uint64_t omitted_rollback_events{};
 };
 
-}  // namespace rollback_lab
+[[nodiscard]] auto trace_sample_interval(std::uint32_t frame_count) noexcept
+    -> std::uint32_t;
 
+}  // namespace rollback_lab

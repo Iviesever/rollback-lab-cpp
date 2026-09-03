@@ -2,6 +2,7 @@
 
 #include <rollback_lab/core/frame.hpp>
 #include <rollback_lab/core/hash.hpp>
+#include <rollback_lab/core/pcg32.hpp>
 #include <rollback_lab/netcode/metrics.hpp>
 #include <rollback_lab/transport/seeded_transport.hpp>
 #include <rollback_lab/version.hpp>
@@ -23,6 +24,7 @@ struct RunReport final {
     std::string os{"unknown"};
     std::uint32_t simulation_version{kSimulationVersion};
     std::uint32_t protocol_version{kProtocolVersion};
+    std::uint32_t pcg32_version{Pcg32::algorithm_version};
     std::uint64_t scenario_seed{};
     std::uint64_t transport_seed{};
     std::uint32_t frame_count{};

@@ -3,6 +3,7 @@
 #include <rollback_lab/core/error.hpp>
 #include <rollback_lab/core/frame.hpp>
 #include <rollback_lab/core/hash.hpp>
+#include <rollback_lab/version.hpp>
 
 #include <cstdint>
 #include <filesystem>
@@ -20,6 +21,7 @@ struct UdpDemoConfig final {
     std::optional<std::uint16_t> forced_relay_port;
     bool launch_peer_b{true};
     std::uint16_t peer_b_protocol_version{1U};
+    std::uint32_t peer_b_simulation_version{kSimulationVersion};
 };
 
 struct UdpDemoResult final {

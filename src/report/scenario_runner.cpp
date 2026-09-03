@@ -70,11 +70,19 @@ auto make_packet(const RollbackSession& sender,
     packet.scenario_id = scenario_id;
     packet.confirmed_frame = session.metrics.confirmed_frame;
     packet.inputs = window_from(history);
-    const auto hash = sender.hash_at(session.metrics.confirmed_frame);
-    if (hash.ok()) {
-        packet.confirmed_hash =
-            ConfirmedHash{session.metrics.confirmed_frame, hash.value()};
+    packet.confirmed_hashes.reserve(kMaxConfirmedHashes);
+    for (std::uint32_t offset = 0U; offset < kMaxConfirmedHashes; ++offset) {
+        const auto frame = FrameNumber{
+            static_cast<std::uint32_t>(
+                session.metrics.confirmed_frame.value - offset)};
+        const auto hash = sender.hash_at(frame);
+        if (!hash.ok()) {
+            break;
+        }
+        packet.confirmed_hashes.push_back(ConfirmedHash{frame, hash.value()});
     }
+    std::reverse(packet.confirmed_hashes.begin(),
+                 packet.confirmed_hashes.end());
     return packet;
 }
 
@@ -83,6 +91,14 @@ auto recent_pairs(const Replay& replay) -> std::vector<InputPair> {
     return std::vector<InputPair>{
         replay.confirmed_inputs.end() - static_cast<std::ptrdiff_t>(count),
         replay.confirmed_inputs.end()};
+}
+
+void push_packet_event(Trace& trace, PacketTraceEvent event) {
+    if (trace.packets.size() < kMaxTracePacketEvents) {
+        trace.packets.push_back(std::move(event));
+    } else {
+        ++trace.omitted_packet_events;
+    }
 }
 
 void record_send_effects(Trace& trace,
@@ -96,18 +112,18 @@ void record_send_effects(Trace& trace,
     if (!capture_trace) {
         return;
     }
-    trace.packets.push_back(
-        PacketTraceEvent{tick, PacketTraceKind::sent, from, to, sequence});
+    push_packet_event(
+        trace, PacketTraceEvent{tick, PacketTraceKind::sent, from, to, sequence});
     if (after.dropped_loss > before.dropped_loss) {
-        trace.packets.push_back(
-            PacketTraceEvent{tick, PacketTraceKind::dropped, from, to, sequence});
+        push_packet_event(trace, PacketTraceEvent{
+            tick, PacketTraceKind::dropped, from, to, sequence});
     }
     if (after.duplicated_packets > before.duplicated_packets) {
-        trace.packets.push_back(PacketTraceEvent{
+        push_packet_event(trace, PacketTraceEvent{
             tick, PacketTraceKind::duplicated, from, to, sequence});
     }
     if (after.reordered_packets > before.reordered_packets) {
-        trace.packets.push_back(PacketTraceEvent{
+        push_packet_event(trace, PacketTraceEvent{
             tick, PacketTraceKind::reordered, from, to, sequence});
     }
 }
@@ -156,7 +172,7 @@ auto process_delivery(const Delivery& delivery, DeliveryContext& context)
     auto& sequence = delivery.to == Endpoint::a ? context.at_a : context.at_b;
     const auto disposition = sequence.observe(packet.sequence);
     if (context.capture_trace) {
-        context.trace.packets.push_back(PacketTraceEvent{
+        push_packet_event(context.trace, PacketTraceEvent{
             delivery.delivered_at, PacketTraceKind::delivered, delivery.from,
             delivery.to, packet.sequence});
     }
@@ -175,18 +191,22 @@ auto process_delivery(const Delivery& delivery, DeliveryContext& context)
         return Result<void>::failure(correction.error());
     }
     if (context.capture_trace && correction.value().performed) {
-        context.trace.rollbacks.push_back(RollbackTraceEvent{
-            receiver.report().state.frame, correction.value().rollback_from,
-            correction.value().resimulated_frames});
+        if (context.trace.rollbacks.size() < kMaxTraceRollbackEvents) {
+            context.trace.rollbacks.push_back(RollbackTraceEvent{
+                receiver.report().state.frame, correction.value().rollback_from,
+                correction.value().resimulated_frames});
+        } else {
+            ++context.trace.omitted_rollback_events;
+        }
     }
 
-    if (packet.confirmed_hash.has_value()) {
-        const auto local_hash = receiver.hash_at(packet.confirmed_hash->frame);
+    for (const auto& remote_hash : packet.confirmed_hashes) {
+        const auto local_hash = receiver.hash_at(remote_hash.frame);
         if (local_hash.ok()) {
-            const HashObservation local{packet.confirmed_hash->frame,
+            const HashObservation local{remote_hash.frame,
                                         local_hash.value(), true};
-            const HashObservation remote{packet.confirmed_hash->frame,
-                                         packet.confirmed_hash->hash, true};
+            const HashObservation remote{remote_hash.frame,
+                                         remote_hash.hash, true};
             auto& tracker = delivery.to == Endpoint::a ? context.desync_a
                                                        : context.desync_b;
             const auto diagnostic = tracker.observe(
@@ -235,9 +255,7 @@ auto run_seeded_scenario(const ScenarioRunConfig& config)
 
     ScenarioArtifacts artifacts{};
     artifacts.trace.scenario_seed = config.scenario_seed;
-    artifacts.trace.sample_interval =
-        std::max(1U, config.frame_count /
-                         static_cast<std::uint32_t>(kMaxTraceFrames));
+    artifacts.trace.sample_interval = trace_sample_interval(config.frame_count);
     artifacts.replay.scenario_seed = config.scenario_seed;
     artifacts.replay.transport_seed = config.transport_seed;
     artifacts.replay.final_frame = FrameNumber{config.frame_count};
@@ -290,15 +308,6 @@ auto run_seeded_scenario(const ScenarioRunConfig& config)
         accumulate_checkpoint(artifacts.replay, replay_state,
                               frame + 1U == config.frame_count);
 
-        const auto advanced_a = peer_a.advance(input_a);
-        const auto advanced_b = peer_b.advance(input_b);
-        if (!advanced_a.ok()) {
-            return Result<ScenarioArtifacts>::failure(advanced_a.error());
-        }
-        if (!advanced_b.ok()) {
-            return Result<ScenarioArtifacts>::failure(advanced_b.error());
-        }
-
         const auto tick = LogicalTick{frame};
         const auto packet_a = make_packet(peer_a, history_a, config.scenario_seed,
                                           sequence_a++);
@@ -321,14 +330,27 @@ auto run_seeded_scenario(const ScenarioRunConfig& config)
             return Result<ScenarioArtifacts>::failure(processed.error());
         }
 
+        const auto advanced_a = peer_a.advance(input_a);
+        const auto advanced_b = peer_b.advance(input_b);
+        if (!advanced_a.ok()) {
+            return Result<ScenarioArtifacts>::failure(advanced_a.error());
+        }
+        if (!advanced_b.ok()) {
+            return Result<ScenarioArtifacts>::failure(advanced_b.error());
+        }
+
         if (config.capture_trace &&
             ((frame + 1U) % artifacts.trace.sample_interval == 0U ||
              frame + 1U == config.frame_count)) {
             const auto report = peer_a.report();
-            artifacts.trace.frames.push_back(TraceFrame{
-                report.state.frame, report.state, report.final_hash,
-                report.metrics.confirmed_frame != report.state.frame,
-                report.metrics.confirmed_frame});
+            if (artifacts.trace.frames.size() < kMaxTraceFrames) {
+                artifacts.trace.frames.push_back(TraceFrame{
+                    report.state.frame, report.state, report.final_hash,
+                    report.metrics.confirmed_frame != report.state.frame,
+                    report.metrics.confirmed_frame});
+            } else {
+                ++artifacts.trace.omitted_frame_samples;
+            }
         }
     }
     artifacts.replay.expected_final_hash = hash_canonical(replay_state);
@@ -401,6 +423,18 @@ auto run_seeded_scenario(const ScenarioRunConfig& config)
     report.replay_verified = replay_verified.ok();
     const bool desync = desync_a.diagnostic().has_value() ||
                         desync_b.diagnostic().has_value();
+    if (desync) {
+        if (!desync_a.diagnostic().has_value()) {
+            artifacts.desync_diagnostic = desync_b.diagnostic();
+        } else if (!desync_b.diagnostic().has_value() ||
+                   frame_before(
+                       desync_a.diagnostic()->earliest_divergent_frame,
+                       desync_b.diagnostic()->earliest_divergent_frame)) {
+            artifacts.desync_diagnostic = desync_a.diagnostic();
+        } else {
+            artifacts.desync_diagnostic = desync_b.diagnostic();
+        }
+    }
     report.desync_result = desync ? "detected" : "none";
     report.success = report.confirmed_frame == FrameNumber{config.frame_count} &&
                      report.final_hash_a == report.final_hash_b &&
@@ -410,9 +444,18 @@ auto run_seeded_scenario(const ScenarioRunConfig& config)
                                       : "peers did not converge";
     }
     artifacts.report = std::move(report);
+    if (desync) {
+        return Result<ScenarioArtifacts>::success(std::move(artifacts));
+    }
     if (!artifacts.report.success) {
+        const auto code = desync
+                              ? ErrorCode::desync
+                              : (artifacts.report.confirmed_frame !=
+                                         FrameNumber{config.frame_count}
+                                     ? ErrorCode::timeout
+                                     : ErrorCode::replay_mismatch);
         return Result<ScenarioArtifacts>::failure(
-            Error{desync ? ErrorCode::desync : ErrorCode::replay_mismatch,
+            Error{code,
                   artifacts.report.confirmed_frame.value, 0U,
                   "seeded_scenario"});
     }

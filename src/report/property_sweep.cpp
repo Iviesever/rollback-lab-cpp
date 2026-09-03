@@ -14,6 +14,8 @@ namespace rollback_lab {
 namespace {
 
 constexpr std::array<std::uint32_t, 4U> loss_rates{0U, 1U, 5U, 20U};
+constexpr std::array<std::uint32_t, 7U> edge_frame_counts{
+    1U, 32U, 120U, 121U, 255U, 256U, 257U};
 constexpr StateHash digest_offset = 14695981039346656037ULL;
 constexpr StateHash digest_prime = 1099511628211ULL;
 
@@ -25,7 +27,13 @@ auto mix_digest(StateHash digest, const std::uint64_t value) -> StateHash {
     return digest;
 }
 
-auto scenario_for(const std::uint32_t seed_index) -> ScenarioRunConfig {
+struct SweepCase final {
+    ScenarioRunConfig scenario;
+    std::optional<ErrorCode> expected_failure;
+};
+
+auto scenario_for(const std::uint32_t seed_index,
+                  const std::uint32_t offset) -> SweepCase {
     Pcg32 random{0x9E3779B97F4A7C15ULL ^ seed_index,
                  0xD1B54A32D192ED03ULL + seed_index};
     ScenarioRunConfig config{};
@@ -35,9 +43,11 @@ auto scenario_for(const std::uint32_t seed_index) -> ScenarioRunConfig {
     config.transport_seed =
         (static_cast<std::uint64_t>(random.next_u32()) << 32U) |
         random.next_u32();
-    config.frame_count = 24U + random.bounded(9U);
+    config.frame_count = offset < edge_frame_counts.size()
+                             ? edge_frame_counts[offset]
+                             : 40U + random.bounded(57U);
     config.capture_trace = false;
-    config.tail_redundancy_ticks = 48U;
+    config.tail_redundancy_ticks = 64U;
     config.transport.seed = config.transport_seed;
     config.transport.base_latency_ticks = random.bounded(7U);
     config.transport.jitter_ticks = random.bounded(4U);
@@ -49,13 +59,28 @@ auto scenario_for(const std::uint32_t seed_index) -> ScenarioRunConfig {
     config.transport.max_queue_bytes = 512U * 1'200U;
     config.transport.bandwidth_bytes_per_tick = 1U << 20U;
     config.transport.max_packet_age_ticks = 128U;
-    return config;
-}
-
-auto declared_network_failure(const ErrorCode code) -> bool {
-    return code == ErrorCode::queue_overflow || code == ErrorCode::timeout ||
-           code == ErrorCode::rollback_window_exceeded ||
-           code == ErrorCode::replay_mismatch;
+    std::optional<ErrorCode> expected;
+    if (offset >= edge_frame_counts.size() && offset % 50U == 7U) {
+        config.transport.base_latency_ticks = 20U;
+        config.transport.jitter_ticks = 0U;
+        config.transport.loss_percent = 0U;
+        config.transport.reorder_percent = 0U;
+        config.transport.duplicate_percent = 0U;
+        config.transport.burst_loss_percent = 0U;
+        config.transport.max_queue_packets = 1U;
+        config.transport.max_queue_bytes = 1'200U;
+        expected = ErrorCode::queue_overflow;
+    } else if (offset >= edge_frame_counts.size() && offset % 50U == 8U) {
+        config.transport.base_latency_ticks = 10U;
+        config.transport.jitter_ticks = 0U;
+        config.transport.loss_percent = 0U;
+        config.transport.reorder_percent = 0U;
+        config.transport.duplicate_percent = 0U;
+        config.transport.burst_loss_percent = 0U;
+        config.transport.max_packet_age_ticks = 0U;
+        expected = ErrorCode::timeout;
+    }
+    return SweepCase{config, expected};
 }
 
 auto validate_success(const ScenarioArtifacts& artifacts,
@@ -85,11 +110,14 @@ auto run_property_sweep(const PropertySweepConfig& config)
     PropertySweepResult result{};
     result.start_seed = config.start_seed;
     result.total_seeds = config.seed_count;
-    result.repeated_identity_samples = config.repeat_identity_samples;
+    result.edge_frame_cases =
+        std::min(config.seed_count,
+                 static_cast<std::uint32_t>(edge_frame_counts.size()));
     StateHash digest = digest_offset;
     for (std::uint32_t offset = 0U; offset < config.seed_count; ++offset) {
         const auto seed = static_cast<std::uint32_t>(config.start_seed + offset);
-        const auto scenario = scenario_for(seed);
+        const auto sweep_case = scenario_for(seed, offset);
+        const auto& scenario = sweep_case.scenario;
         const auto loss_index = static_cast<std::size_t>(
             std::find(loss_rates.begin(), loss_rates.end(),
                       scenario.transport.loss_percent) - loss_rates.begin());
@@ -97,17 +125,40 @@ auto run_property_sweep(const PropertySweepConfig& config)
 
         const auto first = run_seeded_scenario(scenario);
         digest = mix_digest(digest, seed);
-        if (!first.ok()) {
-            if (!declared_network_failure(first.error().code)) {
+        if (sweep_case.expected_failure.has_value()) {
+            if (first.ok() ||
+                first.error().code != sweep_case.expected_failure.value()) {
                 ++result.unbounded_failures;
                 return Result<PropertySweepResult>::failure(
-                    Error{first.error().code, seed, first.error().offset,
-                          "property_unexpected_failure"});
+                    Error{first.ok() ? ErrorCode::invalid_argument
+                                     : first.error().code,
+                          seed, first.ok() ? 0U : first.error().offset,
+                          "property_expected_failure"});
             }
             ++result.declared_failures;
+            if (first.error().code == ErrorCode::queue_overflow) {
+                ++result.queue_overflow_failures;
+            } else {
+                ++result.timeout_failures;
+            }
             digest = mix_digest(digest,
                                 static_cast<std::uint64_t>(first.error().code));
+            const auto repeated = run_seeded_scenario(scenario);
+            ++result.repeated_identity_samples;
+            if (repeated.ok() || repeated.error().code != first.error().code ||
+                repeated.error().detail != first.error().detail) {
+                ++result.identity_mismatches;
+                return Result<PropertySweepResult>::failure(
+                    Error{ErrorCode::replay_mismatch, seed, 0U,
+                          "property_failure_repeat"});
+            }
             continue;
+        }
+        if (!first.ok()) {
+            ++result.unbounded_failures;
+            return Result<PropertySweepResult>::failure(
+                Error{first.error().code, seed, first.error().offset,
+                      "property_unexpected_failure"});
         }
         if (!validate_success(first.value(), scenario)) {
             ++result.unbounded_failures;
@@ -121,6 +172,7 @@ auto run_property_sweep(const PropertySweepConfig& config)
 
         if (offset < config.repeat_identity_samples) {
             const auto repeated = run_seeded_scenario(scenario);
+            ++result.repeated_identity_samples;
             if (!repeated.ok() ||
                 report_identity(repeated.value().report) != identity ||
                 repeated.value().replay != first.value().replay) {
@@ -151,6 +203,10 @@ auto canonical_json(const PropertySweepResult& result) -> std::string {
            << "  \"deadlocks\":" << result.deadlocks << ",\n"
            << "  \"unbounded_failures\":" << result.unbounded_failures
            << ",\n"
+           << "  \"edge_frame_cases\":" << result.edge_frame_cases << ",\n"
+           << "  \"queue_overflow_failures\":"
+           << result.queue_overflow_failures << ",\n"
+           << "  \"timeout_failures\":" << result.timeout_failures << ",\n"
            << "  \"loss_rate_scenarios\":{\"0\":"
            << result.loss_rate_scenarios[0] << ",\"1\":"
            << result.loss_rate_scenarios[1] << ",\"5\":"
@@ -169,4 +225,3 @@ auto canonical_json(const PropertySweepResult& result) -> std::string {
 }
 
 }  // namespace rollback_lab
-

@@ -25,6 +25,9 @@ struct PropertySweepResult final {
     std::uint32_t crashes{};
     std::uint32_t deadlocks{};
     std::uint32_t unbounded_failures{};
+    std::uint32_t edge_frame_cases{};
+    std::uint32_t queue_overflow_failures{};
+    std::uint32_t timeout_failures{};
     std::array<std::uint32_t, 4U> loss_rate_scenarios{};
     StateHash identity_digest{};
 };
@@ -35,4 +38,3 @@ struct PropertySweepResult final {
     -> std::string;
 
 }  // namespace rollback_lab
-
