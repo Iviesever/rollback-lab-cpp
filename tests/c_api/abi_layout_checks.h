@@ -70,6 +70,17 @@ RL_LAYOUT(rl_live_correction, 4312, 8); RL_HEADER(rl_live_correction);
 RL_OFFSET(rl_live_correction, performed, 8); RL_OFFSET(rl_live_correction, rollback_from, 12);
 RL_OFFSET(rl_live_correction, resimulated_frames, 16); RL_OFFSET(rl_live_correction, reserved, 20);
 RL_OFFSET(rl_live_correction, before, 24); RL_OFFSET(rl_live_correction, after, 2168);
+RL_LAYOUT(rl_udp_config, 72, 8); RL_HEADER(rl_udp_config);
+RL_OFFSET(rl_udp_config, scenario_seed, 8); RL_OFFSET(rl_udp_config, transport_seed, 16);
+RL_OFFSET(rl_udp_config, frame_count, 24); RL_OFFSET(rl_udp_config, listen_port, 28);
+RL_OFFSET(rl_udp_config, relay_port, 32); RL_OFFSET(rl_udp_config, handshake_timeout_ms, 36);
+RL_OFFSET(rl_udp_config, run_timeout_ms, 40); RL_OFFSET(rl_udp_config, advertised_protocol_version, 44);
+RL_OFFSET(rl_udp_config, advertised_simulation_version, 48); RL_OFFSET(rl_udp_config, advertised_abi_profile_version, 52);
+RL_OFFSET(rl_udp_config, reserved, 56);
+RL_LAYOUT(rl_udp_step_result, 32, 4); RL_HEADER(rl_udp_step_result);
+RL_OFFSET(rl_udp_step_result, logical_tick, 8); RL_OFFSET(rl_udp_step_result, phase, 12);
+RL_OFFSET(rl_udp_step_result, finished, 16); RL_OFFSET(rl_udp_step_result, handshake_complete, 20);
+RL_OFFSET(rl_udp_step_result, desync_detected, 24); RL_OFFSET(rl_udp_step_result, earliest_divergent_frame, 28);
 #undef RL_HEADER
 #undef RL_LAYOUT
 #undef RL_OFFSET

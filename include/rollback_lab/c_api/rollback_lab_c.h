@@ -30,6 +30,7 @@ extern "C" {
 #define RL_CAP_SESSION UINT64_C(1)
 #define RL_CAP_LIVE UINT64_C(2)
 #define RL_CAP_CANONICAL_BYTES UINT64_C(4)
+#define RL_CAP_UDP UINT64_C(8)
 
 /* Values are uint32_t, never a compiler-dependent enum representation. */
 typedef uint32_t rl_status;
@@ -50,6 +51,9 @@ typedef uint32_t rl_status;
 #define RL_DESYNC UINT32_C(14)
 #define RL_IO UINT32_C(15)
 #define RL_REPLAY_MISMATCH UINT32_C(16)
+#define RL_NETWORK_VERSION UINT32_C(17)
+#define RL_HANDSHAKE_PROFILE UINT32_C(18)
+#define RL_PACKET UINT32_C(19)
 
 /* ABI v1 targets x64 little endian with natural alignment, maximum 8 bytes.
  * No packing pragma is required or permitted around this header. Structs passed
@@ -260,6 +264,65 @@ RL_API rl_status rl_live_get_correction(rl_live* live, uint32_t peer, rl_live_co
 RL_API rl_status rl_live_copy_report(rl_live* live, char* buffer, uint32_t capacity, uint32_t* required);
 RL_API rl_status rl_live_copy_trace(rl_live* live, char* buffer, uint32_t capacity, uint32_t* required);
 RL_API rl_status rl_live_copy_replay(rl_live* live, uint8_t* buffer, uint32_t capacity, uint32_t* required);
+
+typedef struct rl_udp_peer rl_udp_peer;
+#define RL_UDP_HANDSHAKE UINT32_C(0)
+#define RL_UDP_RUNNING UINT32_C(1)
+#define RL_UDP_CONFIRMING UINT32_C(2)
+#define RL_UDP_FINISHED UINT32_C(3)
+#define RL_UDP_FAILED UINT32_C(4)
+
+typedef struct rl_udp_config {
+    uint32_t api_version;
+    uint32_t struct_size;
+    uint64_t scenario_seed;
+    uint64_t transport_seed;
+    uint32_t frame_count;
+    uint32_t listen_port;
+    uint32_t relay_port;
+    uint32_t handshake_timeout_ms;
+    uint32_t run_timeout_ms;
+    uint32_t advertised_protocol_version;
+    uint32_t advertised_simulation_version;
+    uint32_t advertised_abi_profile_version;
+    uint32_t reserved[3];
+} rl_udp_config;
+
+typedef struct rl_udp_step_result {
+    uint32_t api_version;
+    uint32_t struct_size;
+    uint32_t logical_tick;
+    uint32_t phase;
+    uint32_t finished;
+    uint32_t handshake_complete;
+    uint32_t desync_detected;
+    uint32_t earliest_divergent_frame;
+} rl_udp_step_result;
+
+/* Borrows one unused frame-zero session; queries remain available. Destroy the
+ * UDP driver before its session, on the creating thread. No worker threads.
+ * Each step polls at most 64 datagrams and advances at most one scripted local
+ * frame. elapsed_milliseconds is caller-provided, monotonic elapsed time since
+ * creation; it controls transport deadlines only. Call at fixed-step cadence.
+ * Bounds: 1..240 frames, 1..60000 ms handshake/run, nonzero relay port.
+ * listen_port=0 requests a dynamic port; copy_failure reports the bound port.
+ * Advertised version fields: zero means the compiled version. Nonzero values
+ * are negative-test advertisements, never expected-version overrides.
+ * Protocol v1 wire format is unchanged. The named engine-udp-v1 configuration
+ * digest binds ABI, protocol, simulation, both seeds and target frame. ABI is
+ * validated as part of this aggregate profile, not a separate remote field.
+ * Report/replay require successful completion. Failure JSON remains readable
+ * at every phase and contains any confirmed desync diagnostic. Sized copies
+ * include the NUL for JSON, exclude it for replay, and never partially write.
+ * Successful terminal steps are idempotent; failed steps retain their error.
+ */
+RL_API rl_status rl_udp_peer_create(const rl_udp_config* config, rl_session* session, rl_udp_peer** output);
+RL_API rl_status rl_udp_peer_destroy(rl_udp_peer* peer);
+RL_API rl_status rl_udp_peer_step(rl_udp_peer* peer, uint64_t elapsed_milliseconds, rl_udp_step_result* output);
+RL_API rl_status rl_udp_peer_get_correction(rl_udp_peer* peer, rl_live_correction* output);
+RL_API rl_status rl_udp_peer_copy_report(rl_udp_peer* peer, char* buffer, uint32_t capacity, uint32_t* required);
+RL_API rl_status rl_udp_peer_copy_replay(rl_udp_peer* peer, uint8_t* buffer, uint32_t capacity, uint32_t* required);
+RL_API rl_status rl_udp_peer_copy_failure(rl_udp_peer* peer, char* buffer, uint32_t capacity, uint32_t* required);
 
 #ifdef __cplusplus
 }

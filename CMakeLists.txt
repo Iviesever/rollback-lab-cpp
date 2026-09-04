@@ -65,7 +65,7 @@ if(WIN32)
     target_link_libraries(rollback_lab PUBLIC ws2_32)
 endif()
 
-add_library(rollback_lab_c SHARED src/c_api/session_api.cpp src/c_api/live_api.cpp)
+add_library(rollback_lab_c SHARED src/c_api/session_api.cpp src/c_api/live_api.cpp src/c_api/udp_api.cpp)
 add_library(rollback_lab::rollback_lab_c ALIAS rollback_lab_c)
 target_link_libraries(rollback_lab_c PRIVATE rollback_lab)
 target_include_directories(rollback_lab_c PUBLIC
@@ -119,6 +119,16 @@ if(ROLLBACK_LAB_BUILD_TESTS AND BUILD_TESTING)
     target_link_libraries(rollback_lab_live_tests PRIVATE rollback_lab_c rollback_lab)
     rollback_lab_set_warnings(rollback_lab_live_tests)
     add_test(NAME c_abi_live_tests COMMAND rollback_lab_live_tests)
+
+    add_executable(rollback_lab_udp_api_tests tests/test_main.cpp
+        tests/c_api/udp_test.cpp tests/c_api/udp_consumer.c)
+    set_target_properties(rollback_lab_udp_api_tests PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+    target_include_directories(rollback_lab_udp_api_tests PRIVATE tests)
+    target_link_libraries(rollback_lab_udp_api_tests PRIVATE rollback_lab_c rollback_lab)
+    rollback_lab_set_warnings(rollback_lab_udp_api_tests)
+    add_dependencies(rollback_lab_udp_api_tests rollback_lab_cli)
+    add_test(NAME c_abi_udp_tests COMMAND rollback_lab_udp_api_tests)
+    set_tests_properties(c_abi_udp_tests PROPERTIES TIMEOUT 60)
 
     add_executable(rollback_lab_tests
         tests/test_main.cpp

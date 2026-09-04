@@ -61,7 +61,7 @@ RL_API rl_status rl_get_version(rl_version_info* output) {
         result.simulation_version = rollback_lab::kSimulationVersion;
         result.protocol_version = rollback_lab::kProtocolVersion;
         result.replay_version = rollback_lab::kReplayVersion;
-        result.capabilities = RL_CAP_SESSION | RL_CAP_LIVE | RL_CAP_CANONICAL_BYTES;
+        result.capabilities = RL_CAP_SESSION | RL_CAP_LIVE | RL_CAP_CANONICAL_BYTES | RL_CAP_UDP;
         const auto length = std::min(rollback_lab::kGitSha.size(), sizeof(result.source_git_sha) - 1);
         std::memcpy(result.source_git_sha, rollback_lab::kGitSha.data(), length);
         *output = result;
