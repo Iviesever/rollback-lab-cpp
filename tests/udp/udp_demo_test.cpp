@@ -41,6 +41,12 @@ RL_TEST(udp_demo_uses_relay_and_two_independent_peer_processes) {
     config.frame_count = 90U;
     config.watchdog_milliseconds = 4'000U;
     const auto result = run_udp_demo(config);
+    if (!result.ok()) {
+        std::ostringstream diagnostic;
+        diagnostic << "UDP success case failed: code=" << static_cast<unsigned>(result.error().code)
+                   << " detail=" << result.error().detail << " context=" << result.error().context;
+        throw std::runtime_error(diagnostic.str());
+    }
     RL_REQUIRE(result.ok());
     RL_CHECK(result.value().relay_pid != 0U);
     RL_CHECK(result.value().peer_a_pid != 0U);
@@ -173,4 +179,28 @@ RL_TEST(child_process_wait_is_idempotent_after_reap) {
     RL_REQUIRE(repeated.ok());
     RL_REQUIRE(repeated.value().has_value());
     RL_CHECK(repeated.value().value() == 0);
+}
+
+RL_TEST(udp_demo_relative_output_survives_child_working_directory) {
+    const auto executable = executable_path();
+    const auto root = temp_output("rollback_lab_udp_relative");
+    clean(root);
+    std::filesystem::create_directories(root);
+    struct RestoreDirectory final {
+        std::filesystem::path original{std::filesystem::current_path()};
+        ~RestoreDirectory() { std::filesystem::current_path(original); }
+    } restore;
+    std::filesystem::current_path(root);
+    UdpDemoConfig config{};
+    config.executable_path = executable;
+    config.output_directory = "relative-output";
+    config.frame_count = 30U;
+    config.watchdog_milliseconds = 4'000U;
+    const auto result = run_udp_demo(config);
+    RL_REQUIRE(result.ok());
+    RL_CHECK(result.value().confirmed_frame == FrameNumber{30U});
+    RL_CHECK(std::filesystem::is_regular_file(root / "relative-output/peer-a-input.rlr"));
+    RL_CHECK(std::filesystem::is_regular_file(root / "relative-output/peer-b-input.rlr"));
+    std::filesystem::current_path(restore.original);
+    clean(root);
 }

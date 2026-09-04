@@ -29,6 +29,7 @@ enum class ErrorCode : std::uint16_t {
     replay_mismatch,
     desync,
     io_error,
+    internal_failure,
 };
 
 struct Error final {

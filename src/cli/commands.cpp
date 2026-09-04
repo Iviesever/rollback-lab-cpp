@@ -31,6 +31,7 @@ void print_help() {
     std::cout
         << "rollback_lab <command>\n"
         << "  simulate --scenario default [--frames N] [--out DIRECTORY]\n"
+        << "    [--scenario-seed uint64] [--transport-seed uint64]\n"
         << "  replay FILE\n"
         << "  udp-demo [--frames N] [--out DIRECTORY] [--inject-desync]\n"
         << "  verify [--frames N]\n"
@@ -61,6 +62,26 @@ auto parse_u32(const std::string& text, const std::uint32_t fallback)
             Error{ErrorCode::invalid_argument, 0U, 0U, "numeric_option"});
     }
     return Result<std::uint32_t>::success(value);
+}
+
+auto parse_u64(const std::span<const std::string> arguments,
+               const std::string_view option, const std::uint64_t fallback)
+    -> Result<std::uint64_t> {
+    const auto found = std::find(arguments.begin(), arguments.end(), option);
+    if (found == arguments.end()) return Result<std::uint64_t>::success(fallback);
+    const auto supplied = std::next(found);
+    if (supplied == arguments.end() || supplied->empty()) {
+        return Result<std::uint64_t>::failure(
+            Error{ErrorCode::invalid_argument, 0U, 0U, "missing_seed_option"});
+    }
+    const auto& text = *supplied;
+    std::uint64_t value{};
+    const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value);
+    if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size()) {
+        return Result<std::uint64_t>::failure(
+            Error{ErrorCode::invalid_argument, 0U, 0U, "seed_option"});
+    }
+    return Result<std::uint64_t>::success(value);
 }
 
 auto read_binary(const std::filesystem::path& path)
@@ -160,7 +181,16 @@ auto simulate_command(const std::span<const std::string> arguments) -> int {
         return 3;
     }
 
-    const auto artifacts = run_seeded_scenario(default_scenario(frames.value()));
+    auto config = default_scenario(frames.value());
+    const auto scenario_seed = parse_u64(arguments, "--scenario-seed", config.scenario_seed);
+    const auto transport_seed = parse_u64(arguments, "--transport-seed", config.transport_seed);
+    if (!scenario_seed.ok() || !transport_seed.ok()) {
+        std::cerr << "invalid scenario or transport seed\n";
+        return 2;
+    }
+    config.scenario_seed = scenario_seed.value();
+    config.transport_seed = transport_seed.value();
+    const auto artifacts = run_seeded_scenario(config);
     if (!artifacts.ok()) {
         std::cerr << "simulation failed with error code "
                   << static_cast<unsigned>(artifacts.error().code) << '\n';
