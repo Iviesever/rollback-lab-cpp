@@ -1,0 +1,1 @@
+{"simulation":{"total_ticks":100000,"total_microseconds":7232,"ticks_per_second":13827433},"rollback_stress":{"total_ticks":2000,"total_microseconds":130030,"rollback_count":1389,"resimulated_frames":9749,"maximum_depth":12}}

@@ -7,15 +7,15 @@ int main() {
     for (const auto& test_case : rollback_lab::test::registry()) {
         try {
             test_case.function();
-            std::cout << "[PASS] " << test_case.name << '\n';
+            std::cout << "[PASS] " << test_case.name << '\n' << std::flush;
         } catch (const std::exception& error) {
             ++failures;
             std::cerr << "[FAIL] " << test_case.name << ": " << error.what()
-                      << '\n';
+                      << '\n' << std::flush;
         } catch (...) {
             ++failures;
             std::cerr << "[FAIL] " << test_case.name
-                      << ": unknown exception\n";
+                      << ": unknown exception\n" << std::flush;
         }
     }
 
@@ -23,4 +23,3 @@ int main() {
               << failures << " failures\n";
     return failures == 0 ? 0 : 1;
 }
-

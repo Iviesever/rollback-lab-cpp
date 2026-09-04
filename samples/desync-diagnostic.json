@@ -1,0 +1,10 @@
+{
+  "earliest_divergent_frame":91,
+  "local_hash":"0x22F98BC71232B0A9",
+  "remote_hash":"0x557737D2464ABDC0",
+  "recent_inputs":[{"frame":59,"a":8,"b":8},{"frame":60,"a":8,"b":10},{"frame":61,"a":9,"b":8},{"frame":62,"a":8,"b":8},{"frame":63,"a":9,"b":8},{"frame":64,"a":8,"b":9},{"frame":65,"a":8,"b":8},{"frame":66,"a":8,"b":8},{"frame":67,"a":8,"b":8},{"frame":68,"a":8,"b":24},{"frame":69,"a":8,"b":8},{"frame":70,"a":8,"b":8},{"frame":71,"a":8,"b":8},{"frame":72,"a":8,"b":8},{"frame":73,"a":8,"b":10},{"frame":74,"a":9,"b":8},{"frame":75,"a":8,"b":8},{"frame":76,"a":9,"b":8},{"frame":77,"a":8,"b":8},{"frame":78,"a":8,"b":8},{"frame":79,"a":8,"b":24},{"frame":80,"a":8,"b":24},{"frame":81,"a":10,"b":24},{"frame":82,"a":8,"b":9},{"frame":83,"a":8,"b":10},{"frame":84,"a":10,"b":8},{"frame":85,"a":8,"b":8},{"frame":86,"a":8,"b":10},{"frame":87,"a":8,"b":8},{"frame":88,"a":24,"b":8},{"frame":89,"a":8,"b":8},{"frame":90,"a":8,"b":8}],
+  "state_summary":{"players":[{"id":"A","x":634880,"y":294912,"hp":100,"score":0},{"id":"B","x":1036288,"y":286720,"hp":74,"score":0}],"active_projectiles":3},
+  "simulation_version":1,
+  "protocol_version":1,
+  "scenario_seed":1
+}

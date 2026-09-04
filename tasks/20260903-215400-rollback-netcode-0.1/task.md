@@ -62,7 +62,7 @@ RL_TEST(version_contract_is_nonzero) {
 
 预期: configure/build 成功，1+ smoke tests PASS，零项目警告。
 
-- [ ] **Step 5: Git/GitHub 基线和分支**
+- [x] **Step 5: Git/GitHub 基线和分支**
 
 ```powershell
 git init -b main
@@ -101,7 +101,7 @@ std::uint64_t hash_canonical(const WorldState& state);
 InputFrame scripted_input(std::uint64_t scenario_seed, FrameNumber frame, PlayerId player);
 ```
 
-- [ ] **Step 1: 写 simulation RED tests**
+- [x] **Step 1: 写 simulation RED tests**
 
 覆盖：同 seed/input 的逐帧 hash 一致；frame 必须等于 state boundary；四边 clamp；对向输入抵消；projectile 64 上限和稳定 ID；collision/damage/score/respawn；cooldown；checked overflow typed failure；canonical bytes 无 padding/float。
 
@@ -114,21 +114,21 @@ RL_TEST(simulation_repeats_identical_hash_history) {
 }
 ```
 
-- [ ] **Step 2: 验证 RED**
+- [x] **Step 2: 验证 RED**
 
 运行: `cmake --build --preset msvc-debug; ctest --preset msvc-debug -R "frame|checked_math|simulation|golden" --output-on-failure`
 
 预期: FAIL 于缺失生产 API，而不是测试 runner/config 错误。
 
-- [ ] **Step 3: 最小 GREEN**
+- [x] **Step 3: 最小 GREEN**
 
 实现 1,024-scale integer movement；固定 arena/player/projectile capacities；stable-ID ascending loops；widened checked arithmetic；明确 input conflict policy；逐字段 canonical serializer；FNV-1a；PCG32 scripted inputs。`SimulationVariant::damage_bias` 只供受控 desync scenario 使用，默认路径不读取测试状态。
 
-- [ ] **Step 4: focused 和 full regression**
+- [x] **Step 4: focused 和 full regression**
 
 运行上述 focused CTest，再运行 `ctest --preset msvc-debug --output-on-failure`。预期全部 PASS；将黄金 hash/bytes 写入测试常量并记录工具链。
 
-- [ ] **Step 5: 证据与提交**
+- [x] **Step 5: 证据与提交**
 
 保存 RED/GREEN/full logs、更新 matrix/progress，提交 `feat: add deterministic arena simulation`。
 
@@ -156,7 +156,7 @@ Result<void> RollbackSession::observe_remote_confirmation(FrameNumber frame,
 SessionReport RollbackSession::report() const;
 ```
 
-- [ ] **Step 1: 写 ring/session RED tests**
+- [x] **Step 1: 写 ring/session RED tests**
 
 覆盖 ring wrap、missing/stale key、120 boundary；zero latency zero rollback；last-known match no rollback；mismatch exact earliest frame；multiple late inputs coalesce；restore pre-frame snapshot；local input/event not double-applied；metrics exact；confirmed hash convergence；too-old input fail closed。
 
@@ -171,21 +171,21 @@ RL_TEST(late_mismatch_restores_earliest_boundary_once) {
 }
 ```
 
-- [ ] **Step 2: 运行 RED**
+- [x] **Step 2: 运行 RED**
 
 运行: `cmake --build --preset msvc-debug; ctest --preset msvc-debug -R "frame_ring|rollback|convergence" --output-on-failure`
 
 预期: FAIL 于未定义 ring/session 行为。
 
-- [ ] **Step 3: 最小 GREEN**
+- [x] **Step 3: 最小 GREEN**
 
 用固定 `std::array<Slot,256>` + frame tags 实现 histories/snapshots/hashes；session 内部保存 local/remote/predicted input；ingest 只标脏，flush 一次恢复最早 boundary 并重演；event range replace；confirmed boundary 只在双方实际 input 连续时推进。
 
-- [ ] **Step 4: 独立性回归**
+- [x] **Step 4: 独立性回归**
 
 集成测试只通过 public input/packet façade 驱动两个 session，编译期禁止复制 session，运行时比较 report/replay exports。运行 focused 与 full CTest，预期全部 PASS。
 
-- [ ] **Step 5: 证据与提交**
+- [x] **Step 5: 证据与提交**
 
 记录 metric vectors 和 convergence hash，提交 `feat: implement bounded rollback sessions`。
 
@@ -217,29 +217,29 @@ Result<void> SeededTransport::send(Endpoint from, Endpoint to,
 std::vector<Delivery> SeededTransport::deliver(LogicalTick now);
 ```
 
-- [ ] **Step 1: 写 protocol/transport RED tests**
+- [x] **Step 1: 写 protocol/transport RED tests**
 
 Codec 覆盖 hello/input/hash/goodbye round trip、golden bytes、每 byte boundary 截断、magic/version/type/count/length/CRC、random bytes。Sequence 覆盖 duplicate/new out-of-order/stale/wrap。Transport 覆盖 0/1/5/20% loss、jitter、reorder、duplicate、burst、queue overflow、age timeout、同 seed schedule/report byte identity。
 
-- [ ] **Step 2: 运行 RED**
+- [x] **Step 2: 运行 RED**
 
 运行: `cmake --build --preset msvc-debug; ctest --preset msvc-debug -R "protocol|transport" --output-on-failure`
 
 预期: FAIL 于缺少 codec/transport。
 
-- [ ] **Step 3: 最小 codec GREEN**
+- [x] **Step 3: 最小 codec GREEN**
 
 实现 cursor-based checked LE reader/writer；固定 header；<=32 input records；可选 confirmed hash；payload length；trailing CRC-32/ISO-HDLC。所有 decode failure 返回 `ErrorCode`、offset、context enum，不用字符串分支。
 
-- [ ] **Step 4: 最小 transport GREEN**
+- [x] **Step 4: 最小 transport GREEN**
 
 每 send 用 PCG32 决定 drop/duplicate/jitter/reorder/burst；scheduled delivery key 为 `(tick,reorder_rank,ordinal,copy)`；bounded packet/byte queue；overflow policy 配置为 typed fail 或 drop-oldest 并计数。
 
-- [ ] **Step 5: fuzz smoke 与回归**
+- [x] **Step 5: fuzz smoke 与回归**
 
 运行 100,000 deterministic random/mutated byte inputs，预期 decode 永不 crash/越界，成功 decode 必须 encode/decode canonical round trip。运行 focused/full CTest。
 
-- [ ] **Step 6: 证据与提交**
+- [x] **Step 6: 证据与提交**
 
 保存 golden packet、fuzz counts、transport checksum，提交 `feat: add strict protocol and seeded transport`。
 
@@ -268,23 +268,23 @@ Result<std::string> canonical_json(const RunReport& report);
 Result<DesyncDiagnostic> compare_confirmed_hash(const HashObservation& remote);
 ```
 
-- [ ] **Step 1: 写 replay/report/desync RED tests**
+- [x] **Step 1: 写 replay/report/desync RED tests**
 
 覆盖 replay exact reconstruction、unsupported/corrupt/truncated fail；report fixed key order and timing exclusion from identity；trace event/frame bounds；controlled variant earliest divergence；speculative mismatch no desync；diagnostic input/state/version/seed fields。
 
-- [ ] **Step 2: 运行 RED**
+- [x] **Step 2: 运行 RED**
 
 运行: `cmake --build --preset msvc-debug; ctest --preset msvc-debug -R "replay|report|desync|simulate" --output-on-failure`
 
-- [ ] **Step 3: 最小 GREEN**
+- [x] **Step 3: 最小 GREEN**
 
 复用 checked byte/CRC primitives 实现 replay；显式 JSON writer 固定字段顺序和 escaping；hash exchange 只接受 <= local confirmed boundary；diagnostic 保留最近 32 input 和小型 state summary。CLI command 只组合 production APIs。
 
-- [ ] **Step 4: CLI 和回归**
+- [x] **Step 4: CLI 和回归**
 
 运行 `rollback_lab simulate --scenario default --out artifacts/run`，再 `rollback_lab replay artifacts/run/input.rlr`、`verify`、`compare report report`、两个 benchmark。预期 hash 一致、schema 合法、命令返回 0。运行 full CTest。
 
-- [ ] **Step 5: 证据与提交**
+- [x] **Step 5: 证据与提交**
 
 提交 `feat: add replay reports and desync diagnosis`。
 
@@ -312,29 +312,29 @@ Result<int> run_peer(const PeerConfig& config);
 Result<UdpDemoResult> run_udp_demo(const UdpDemoConfig& config);
 ```
 
-- [ ] **Step 1: 写 UDP RED integration tests**
+- [x] **Step 1: 写 UDP RED integration tests**
 
 正常场景断言两个 peer 是不同 PID、opaque relay、confirmed target、equal hash/input logs、replay success、zero exits、all children reaped。负向覆盖 reserved-port conflict、peer missing timeout、protocol mismatch、child abnormal exit。
 
-- [ ] **Step 2: 运行 RED**
+- [x] **Step 2: 运行 RED**
 
 运行: `cmake --build --preset msvc-debug; ctest --preset msvc-debug -R "udp" --output-on-failure`
 
 预期: FAIL 于缺少 process/socket/commands，不使用 long sleep。
 
-- [ ] **Step 3: socket/process GREEN**
+- [x] **Step 3: socket/process GREEN**
 
 Windows 使用 scoped `WSAStartup`, nonblocking/select-or-poll socket, `CreateProcessW`, job object 或显式 terminate/wait/CloseHandle；POSIX 使用 BSD socket, poll, fork/exec 或 posix_spawn, waitpid/kill。随机端口由 bind port 0 获取并在启动协议中校验。
 
-- [ ] **Step 4: relay/peer/demo GREEN**
+- [x] **Step 4: relay/peer/demo GREEN**
 
 Hello/ready 握手包含 scenario/protocol/simulation/peer identity；relay 只看 routing envelope，不 decode state；peer 以 wall clock 调度 packet I/O，但 canonical tick 仅消费 inputs；supervisor 以 bounded poll 管理 watchdog 和 teardown。
 
-- [ ] **Step 5: 稳定性回归**
+- [x] **Step 5: 稳定性回归**
 
 正常 demo 连续运行至少 20 次；负向 tests 每类至少一次；验证系统无残留 `rollback_lab` child。运行 full CTest。
 
-- [ ] **Step 6: 证据与提交**
+- [x] **Step 6: 证据与提交**
 
 保存 PIDs/ports/exits/reports/replay checks，提交 `feat: verify rollback over localhost udp processes`。
 
@@ -355,27 +355,27 @@ Hello/ready 握手包含 scenario/protocol/simulation/peer identity；relay 只�
 - 消费: real `Trace` and artifacts from Tasks 5-6。
 - 产出: `write_viewer(trace,path)` and checked-in reproducible portfolio artifacts。
 
-- [ ] **Step 1: 写 viewer generation RED**
+- [x] **Step 1: 写 viewer generation RED**
 
 测试 sample viewer 自包含、无 CDN/http imports、内嵌 trace identity 匹配 source trace、必需 control/metric/marker IDs 存在、HTML escaping 正确、trace size under documented bound。
 
-- [ ] **Step 2: 运行 RED**
+- [x] **Step 2: 运行 RED**
 
 运行: `ctest --preset msvc-debug -R viewer --output-on-failure`，预期缺少 generator/template 而 FAIL。
 
-- [ ] **Step 3: 最小 GREEN viewer**
+- [x] **Step 3: 最小 GREEN viewer**
 
 canvas/SVG 绘制双方和 projectile；range scrubber；play/pause；step ±1；frame/HP/score/hash；predicted/confirmed shading；rollback range；drop/delay/reorder/duplicate markers；desync marker；responsive and reduced-motion CSS。数据只来自嵌入的 production trace。
 
-- [ ] **Step 4: 生成 samples 和完整文档**
+- [x] **Step 4: 生成 samples 和完整文档**
 
 用 final CLI commands 生成而非手写 sample data。Interview Guide 覆盖目标列出的 16 个主题；Live Change Drills 至少 12 个；AI Assistance 准确写明用户目标/边界与 Codex GPT-5.6 Sol 实现责任以及用户未手写代码。
 
-- [ ] **Step 5: 浏览器 QA**
+- [x] **Step 5: 浏览器 QA**
 
 通过浏览器打开 `sample-viewer.html`：检查 console 0 error；拖动 scrubber；step/play；比较 rollback markers 与 trace；检查 1440x900 和 390x844；保存可提交 screenshot。运行 full CTest。
 
-- [ ] **Step 6: 证据与提交**
+- [x] **Step 6: 证据与提交**
 
 保存 browser observations/screenshots/checksums，提交 `docs: add interactive rollback timeline and portfolio guide`。
 
@@ -395,7 +395,7 @@ canvas/SVG 绘制双方和 projectile；range scrubber；play/pause；step ±1�
 - 消费: 全部生产 API 和 CLI。
 - 产出: final verification bundle, exact PR body, clean pushed branch, Draft PR。
 
-- [ ] **Step 1: 写 property RED invariant**
+- [x] **Step 1: 写 property RED invariant**
 
 ```cpp
 RL_TEST(property_sweep_10000_seeds_is_bounded_and_repeatable) {
@@ -408,31 +408,31 @@ RL_TEST(property_sweep_10000_seeds_is_bounded_and_repeatable) {
 }
 ```
 
-- [ ] **Step 2: 运行 RED 后最小 GREEN harness**
+- [x] **Step 2: 运行 RED 后最小 GREEN harness**
 
 先确认 test 因缺少 sweep API/target 正确失败；实现 bounded config generation、failure classification、identity digest 和 progress heartbeat，不放宽已有 production limits。
 
-- [ ] **Step 3: Windows compiler matrix**
+- [x] **Step 3: Windows compiler matrix**
 
 运行 MSVC Debug/Release configure/build/CTest、clean rebuild。若 PATH 无 Clang/GCC，则下载官方、version-locked portable LLVM 到项目忽略目录 `.tools/llvm-<version>`，校验 SHA256，不修改系统 PATH，运行 Clang Debug/Release。
 
-- [ ] **Step 4: Sanitizer/fuzz/benchmark**
+- [x] **Step 4: Sanitizer/fuzz/benchmark**
 
 在 portable Clang 支持范围运行 ASan/UBSan；若 Windows runtime 不支持某组合，保留编译器证据和明确限制，不把未运行写成通过。运行 100,000+ fuzz smoke、两个 benchmark、UDP stress、replay/desync samples。
 
-- [ ] **Step 5: 10,000 seeds 与完整审计**
+- [x] **Step 5: 10,000 seeds 与完整审计**
 
 运行 exact 10,000 sweep；重复 identity；`rg` 审计 canonical modules 中 `chrono|random_device|float|double`，审计 peer state copying；核对 30 条 completion conditions；刷新所有受影响 regression。
 
-- [ ] **Step 6: 最终提交与远端**
+- [x] **Step 6: 最终提交与远端**
 
 确认 `git diff --check`、CTest 全绿、artifact checksums、docs 与实现一致。提交 `test: harden rollback lab release candidate`，推送 `feat/rollback-netcode-0.1`。
 
-- [ ] **Step 7: 创建 Draft PR**
+- [x] **Step 7: 创建 Draft PR**
 
 PR body 包含 product、architecture、exact base/head、test matrix/counts、10,000 seeds、UDP、sanitizer/fuzz、benchmark、viewer screenshot、limitations、AI assistance。调用 `gh pr create --draft --base main --head feat/rollback-netcode-0.1`，不 merge/tag/release。
 
-- [ ] **Step 8: 完成交付证明**
+- [x] **Step 8: 完成交付证明**
 
 重新读取 remote refs/PR、记录 ahead/behind/commit list、运行 final clean status。只有 verification matrix 全 Passed（不支持项按目标允许且证据明确）且全部 P0 条件满足后，才把目标标为 complete 并给出规定的最终报告字段。
 

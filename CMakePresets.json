@@ -57,9 +57,11 @@
     },
     {
       "name": "clang-asan",
-      "inherits": "clang-debug",
-      "displayName": "Clang ASan + UBSan",
+      "inherits": "base",
+      "displayName": "Clang RelWithDebInfo ASan + UBSan",
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CXX_COMPILER": "clang++",
         "ROLLBACK_LAB_ENABLE_SANITIZERS": "ON"
       }
     }
@@ -97,6 +99,34 @@
       "configurePreset": "clang-asan",
       "output": { "outputOnFailure": true }
     }
+  ],
+  "workflowPresets": [
+    {
+      "name": "msvc-debug-ci",
+      "displayName": "MSVC Debug configure, build, and test",
+      "steps": [
+        { "type": "configure", "name": "msvc-debug" },
+        { "type": "build", "name": "msvc-debug" },
+        { "type": "test", "name": "msvc-debug" }
+      ]
+    },
+    {
+      "name": "msvc-release-ci",
+      "displayName": "MSVC Release configure, build, and test",
+      "steps": [
+        { "type": "configure", "name": "msvc-release" },
+        { "type": "build", "name": "msvc-release" },
+        { "type": "test", "name": "msvc-release" }
+      ]
+    },
+    {
+      "name": "clang-debug-ci",
+      "displayName": "Clang Debug configure, build, and test",
+      "steps": [
+        { "type": "configure", "name": "clang-debug" },
+        { "type": "build", "name": "clang-debug" },
+        { "type": "test", "name": "clang-debug" }
+      ]
+    }
   ]
 }
-
