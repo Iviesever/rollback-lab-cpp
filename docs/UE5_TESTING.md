@@ -1,6 +1,6 @@
 # UE 5.8 testing
 
-UE acceptance checks the actual DLL, engine lifecycle, input path, rendering and packaged executable. Core tests alone cannot establish those properties. The [verification matrix](../tasks/20260904-100800-ue5-live-integration-0.2/verification_matrix.md) records each final gate; the [PACT-83 evidence](../tasks/20260904-100800-ue5-live-integration-0.2/evidence/PACT-83.md) records the current Editor baseline.
+UE acceptance checks the actual DLL, engine lifecycle, input path, rendering and packaged executable. Core tests alone cannot establish those properties. The current Core suite has eight CTest entries, including the six-case UDP runner and separate exception test; integrated Release passes 8/8, while the final whole matrix is refreshed after the documentation commit. The [verification matrix](../tasks/20260904-100800-ue5-live-integration-0.2/verification_matrix.md) records each final gate; [PACT-85 evidence](../tasks/20260904-100800-ue5-live-integration-0.2/evidence/PACT-85-ue.md) records functional closure of the UDP extension.
 
 ## Commands
 
@@ -31,7 +31,7 @@ $Demo = "artifacts/ue5-0.2/demo/0.2.0-$revision-shipping"
 
 ## Current Automation baseline
 
-PACT-83 passed **28/28**, with zero warnings, failed tests or skipped tests:
+The current suite passes **32/32**: the original 28 cases and four UDP cases. The first UDP RED run preserved 28 passes and failed all four new tests before implementation; the completed adapter then passed 32/32. PACT-83's original 28-case run also had zero warnings or skipped tests.
 
 | Group | Cases | What it exercises |
 | --- | ---: | --- |
@@ -42,6 +42,7 @@ PACT-83 passed **28/28**, with zero warnings, failed tests or skipped tests:
 | Arena model | 7 | Modes, sample parity, interaction, presets, confirmed desync, invalid settings and borrowed lifetime |
 | Actual PlayerController input | 1 | A fourth real PIE lifecycle; held movement, short D/Space taps, attack, pause, exact step, reset and teardown |
 | Generated content | 2 | Reopened map and native unlit tint material |
+| UDP mode/bridge | 4 | One-session ownership, no-relay frame-zero behavior, deadline/terminal cleanup and UDP model options |
 
 The later PACT-84 rerun using the minimal engine-plugin profile also passed 28/28, with zero failed or not-run tests. The input test first failed on short taps with the real PlayerController. The bounded pending-button mask now retains presses until a fixed step consumes them. All four real PIE lifecycles check that SDK sessions, drivers and library leases return to baseline. These are actual engine-world start/end checks, not only repeated native constructor calls.
 
@@ -53,7 +54,7 @@ A passing packaged smoke requires a successful root process and complete child t
 
 The external verifier reparses nested JSON, compares CLI/C API/UE reports and identities, checks replay bytes and reconstruction, validates PNG files, and validates SDK/Plugin/Demo manifests, all three complete ZIP inventories and SHA-256. `VerifySdk` separately exercises installed C11/C++ consumers. The artifact/evidence regression suite has passed 44 cases, including the SDK archive checks. Its `artifacts/ue5-0.2/parity/<run>/verification.json` is the machine-readable result for those exact inputs. A screenshot file check does not replace human visual inspection.
 
-The current intermediate verifier result passes all 16 checks: SDK/plugin/demo inventories and ZIPs, exact bootstrap inputs and clean process exit, staged SDK identity, CLI and C11 execution, deep equality of all three canonical reports/traces, byte-identical replays, three independent CLI replay verifications and unchanged source identity during verification. Evidence: `artifacts/ue5-0.2/parity/20260904-134325-034-98663f04/verification.json`. Its `source_clean=false` is explicit; this proves the working-source functional path, not final clean-source release acceptance.
+The clean P0 receipt `artifacts/ue5-0.2/p0-clean-1c2e-checkpoint.json` records the completed baseline, including all 16 seeded verifier checks, full regression, controls and packaged failures. The seeded verifier again passes after UDP integration. Final post-extension artifact/source identity must still be refreshed; an earlier clean or working checkpoint cannot stand in for the final reviewed HEAD.
 
 ## Ordinary Shipping control checkpoint
 
@@ -63,9 +64,26 @@ The earlier ordinary Development launch triggered a Windows firewall prompt from
 
 ## Negative paths and process ownership
 
-Six PACT-83 Editor real-process negatives passed: zero target frames, numeric seed suffix, uint64 overflow, early exit, wrong requested source SHA, and an actual screenshot watchdog under NullRHI. Each returned exactly 1, wrote a false failure trace and left no owned child process. The inner smoke watchdog remains 45 seconds; the outer normal smoke process bound remains 240 seconds. Cold shader warmup is a separate operation and cannot extend those acceptance budgets. The failure runner also accepts `-DemoRoot` to exercise these cases in the actual packaged executable; its packaged results must be recorded separately, and are not inferred from the earlier Editor negatives.
+All six seeded failure cases passed in both actual Editor and Shipping processes: zero target frames, numeric seed suffix, uint64 overflow, early exit, wrong requested source SHA, and an actual screenshot watchdog under NullRHI. Each returned exactly 1, wrote a false failure trace and left no owned child process. The inner smoke watchdog remains 45 seconds; the outer normal smoke process bound remains 240 seconds. Cold shader warmup is a separate operation and cannot extend those acceptance budgets. The failure runner accepts `-DemoRoot` for the packaged executable, and its Shipping results are recorded separately in the clean P0 receipt.
 
 The native process runner starts the root suspended, assigns it to a Win64 job, then resumes it. It owns descendants, writes direct logs, preserves the root exit status and checks job completion. It does not terminate processes by name. Only one repository UE pipeline may run at a time. Separate script regressions cover quoting, nonzero exit propagation, descendants, timeout, failed-start handle stability and guarded artifact paths.
+
+## Real UDP process acceptance
+
+```powershell
+./scripts/RunUdpUnrealDemo.ps1 -EngineRoot $EngineRoot -SdkRoot "artifacts/sdk/0.2.0-$revision/install" -DemoRoot $Demo -Case Normal
+./scripts/RunUdpUnrealDemo.ps1 -EngineRoot $EngineRoot -SdkRoot "artifacts/sdk/0.2.0-$revision/install" -DemoRoot $Demo -Case Watchdog
+```
+
+Normal returns 0 only after the group passes profile/source checks, one session per client, dynamic port/PID identity, target confirmation, equal hashes, equal replay bytes and canonical CLI replay verification. The three targets are the unchanged relay and two Shipping inner executables. Watchdog and other negative cases deliberately return nonzero. The case set is Normal, MissingPeer, ProtocolMismatch, SimulationMismatch, AbiMismatch, Watchdog and Desync; inspect the generated `summary.json`, child journal and SDK failure context rather than treating any nonzero code as the expected failure.
+
+Two real normal runs passed: `20260904-155457-274-udp-ue-normal` and `20260904-160929-278-udp-ue-normal`. Both confirmed 240/hash `0x4B35DC3FD8F6009C`, produced equal verified peer replays and reaped all three targets after exit 0. Aggregate rollbacks were 153 and 141. The centered repeat had zero local rollback on A and 141 on B; five inspected screenshots show both starts/convergences and B's genuine correction. Counters and report identities are scheduling-dependent. The UDP verifier requires aggregate prediction/correction, and requires a correction image only for a peer that actually corrected.
+
+All six actual negative cases now pass: missing peer; protocol, simulation and aggregate ABI-profile mismatch; outer watchdog; and controlled confirmed desync. Watchdog run `20260904-163434-420-udp-ue-watchdog` hit the existing five-second outer bound, persisted its failure summary and left no owned children. Desync requires a real confirmed diagnostic, and does not export a successful completed UDP replay. Evidence-helper tests pass 38/38.
+
+Each peer publishes atomic ready JSON from an already-bound SDK port-zero socket before a Core step. The supervisor releases only its relay reservation before the relay binds those exact peer endpoints. A competing relay bind fails closed. Cleanup uses exact process handles, `RLSTOP` and the enclosing native job, never a process-name kill. To survive logs still locked after termination, failure finalization writes provisional status first and retries only sharing/lock errors 32/33 within the existing 10-second cleanup budget. Unavailable diagnostic hashes remain null; normal success requires a complete hash inventory.
+
+PACT-85 functional closure is complete. These extension artifacts are working-source checkpoints. The final clean-source matrix, SDK/plugin/demo, both seeded and UDP receipts, audit and PR still require fresh verification. The [bounded UDP plan](../tasks/20260904-100800-ue5-live-integration-0.2/PACT-85-plan.md) records that the optional work started only after clean P0 acceptance.
 
 ## Build and release gates
 

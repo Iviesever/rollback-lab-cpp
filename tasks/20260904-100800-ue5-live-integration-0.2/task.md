@@ -68,8 +68,8 @@ Files: shared Unreal orchestration and BuildUnrealPlugin/BuildUnrealDemo/TestUnr
 
 ## PACT-85 (conditional)
 
-- [ ] Evaluate actual green P0, time and quota; only then begin two UE client UDP integration.
-- [ ] If ineligible or unfinished at freeze, preserve investigation and record deferral without unfinished production code.
+- [x] Entry validated on clean 1c2ed8e with 35% remaining quota; bounded UDP-UE implementation completed.
+- [x] Real relay + two Shipping clients, equal confirmed hashes/replays, all six negative cases and process cleanup verified; no unfinished production extension retained.
 
 ## PACT-86
 

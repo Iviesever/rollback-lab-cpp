@@ -22,6 +22,12 @@ The cap of eight is an engine scheduling budget. The rollback limit of 120 and h
 
 The Arena retains short movement/attack presses in a bounded pending-bit mask until an actual fixed step consumes them. Sampling a key during a zero-step render callback must not lose the press. Reset clears pending input. A real PlayerController/PIE regression covers short taps, held buttons, paused input and exact step consumption.
 
+## UDP scheduling and deadlines
+
+The UDP runtime uses the same bounded external fixed-step accumulator, but each C ABI call drives one local session over the actual socket. A step polls at most 64 ready datagrams and advances at most one scripted local frame. Handshake and confirmation can consume calls without adding a gameplay frame. The driver has no worker thread or sleep; the CLI blocking entry point wraps the same production driver outside this incremental step.
+
+UE supplies real monotonic elapsed milliseconds since driver creation for handshake/run deadlines. These are sampled from the outer clock, not fabricated as `logical_tick * step_duration`, and never enter canonical state. Discarding accumulator debt therefore does not extend a network timeout. Reversed elapsed time is rejected without advancing; failed and successful terminal states stop canonical work. The public UDP run is scripted and bounded to 240 frames; the dual-view pause/step/input controls do not imply an interactive network feature.
+
 ## Tick versus boundary
 
 During the configured simulation interval, a logical tick advances the two independent sessions through the production packet driver. During the bounded retransmission tail and drain, ticks deliver packets and apply corrections without adding gameplay frames. Therefore logical tick, current/predicted state boundary and confirmed boundary are distinct observations. The default 240-frame sample finishes after its delivery/drain phase rather than assuming tick 240 is already confirmed.

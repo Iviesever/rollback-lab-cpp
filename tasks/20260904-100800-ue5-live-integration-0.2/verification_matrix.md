@@ -17,7 +17,7 @@ ignored `artifacts/ue5-0.2` directory; the scoped evidence documents are committ
 | Core Clang Debug / Release | clean `3dce71e5` configure/build/CTest | 6/6 in each configuration |
 | ASan + UBSan / structured fuzz | clean `3dce71e5` sanitizer CTest; 100000 structured inputs | Passed |
 | Full 10000 seeds, whole sweep repeated | clean-3dce-property-10000.json | 9600 convergences +400 expected bounded failures; zero identity mismatches/crashes/deadlocks/unbounded failures |
-| UE Automation / lifecycle / fixed-step / isolation / integrity | clean `3dce71e5`, run135450 | 28/28, zero failures; actual PIE and controller tests |
+| UE Automation / lifecycle / fixed-step / isolation / integrity | P0 clean checkpoint plus UDP run152940 | 32/32, including four added UDP cases; final rebuild refresh required |
 | Editor build / launch / rendering | PACT83 real RHI and controls; clean `3dce71e5` Editor build135329 | Passed |
 | BuildPlugin Editor Development / Game Development / Game Shipping | run134114 passed; global-mutex contention135501 retained; WaitMutex fix135911 passed all3 | Passed after bounded serialization fix; [investigation](evidence/PACT-84-build-mutex.md) |
 | Win64 BuildCookRun | Development and Shipping; clean `3dce71e5` Shipping run135414 | Passed; clean Shipping cook/build29.04s |
@@ -32,4 +32,12 @@ ignored `artifacts/ue5-0.2` directory; the scoped evidence documents are committ
 | Fresh independent full review | base...`3dce71e5`; later narrow WaitMutex recheck | No confirmed Blocker/High/directly related low-risk Medium; [audit](evidence/PACT-86-audit.md) |
 | One clean source for final SDK/Plugin/Demo/receipts | automatic source, complete tree, ZIP and process checks | Refresh after the serialization/verification-record commit; never reuse working artifacts as final |
 | Clean pushed feature / Draft PR | final Git/GitHub acceptance | Final delivery step; no merge/tag/release authorized |
-| Optional two-client UDP-UE | PACT85 eligibility gate | Not started while clean P0 acceptance is still being refreshed |
+| Two-client UDP-UE | [PACT85](evidence/PACT-85-ue.md): Normal155457/160929, six actual negative cases | Functional closure passed; same-source final rebuild still required |
+
+Latest PACT85 SDK adds seven operations (26 exports total) without changing ABI1,
+Protocol1 or Replay1. Current full Core suite has8 CTest entries:61 Core/CLI/UDP
+behavior cases,7 C-session,4 C-live,6 C-UDP cases, genuine C11 smoke, isolated
+exception regression, structured fuzz and property smoke. Integrated Release
+passed8/8 after the exception fix; final all-configuration rebuild follows.
+The supervisor helper suite passed38/38 and the actual5-second UE Watchdog now
+preserves a fail-closed partial summary while reaping all owned processes.

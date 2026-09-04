@@ -16,15 +16,15 @@ A DLL contains executable code loaded at runtime. Its import `.lib` tells the Wi
 
 ## 4. Why require both `struct_size` and ABI version?
 
-Version identifies the semantic/layout contract; size tells the callee what storage the caller actually supplied. Checking both before access prevents an older/smaller record from being read as a newer one. In ABI v1 every versioned record requires the exact size and zero reserved input bytes. Appending a field does not silently establish compatibility; incompatible additions require a new ABI version and tests.
+Version identifies the semantic/layout contract; size tells the callee what storage the caller actually supplied. Checking both before access prevents an older/smaller record from being read as a newer one. In ABI v1 every versioned record requires the exact size and zero reserved input bytes. Appending a field does not silently establish compatibility; incompatible changes require a new ABI version and tests. The UDP extension instead adds separate functions and new records, leaves all existing layouts intact and advertises `RL_CAP_UDP=8`; a new consumer checks that capability rather than assuming every ABI-v1 DLL has UDP.
 
 ## 5. Who owns handles, and in what order are they released?
 
-The SDK allocates and destroys opaque session and live-driver handles. The live driver borrows two distinct unused A/B sessions; direct mutation or destruction while borrowed returns `RL_BORROWED`. Destroy driver, then sessions, then the DLL lease. All operations stay on the creating thread. UE native RAII, the game-instance subsystem, EndPlay and module pre-exit/shutdown enforce this order. Stale or forged handle pointers remain caller errors outside the safety contract.
+The SDK allocates and destroys opaque session and live-driver handles. The live driver borrows two distinct unused A/B sessions; direct mutation or destruction while borrowed returns `RL_BORROWED`. The UDP driver borrows one unused session under the same guard. Destroy the live/UDP driver, then its owned session handle(s), then the DLL lease. All operations stay on the creating thread. UE native RAII, the game-instance subsystem, EndPlay and module pre-exit/shutdown enforce this order. Stale or forged handle pointers remain caller errors outside the safety contract.
 
 ## 6. Why must UE Delta Seconds stay out of canonical state?
 
-Rendered frame duration depends on hardware, load and scheduling. Putting it into movement, state or hashes would make identical ordered inputs yield different results. UE accumulates wall seconds outside Core; each canonical transition receives only its integer frame and inputs. Presentation can use floating point, while authoritative state uses integer subunits and checked arithmetic.
+Rendered frame duration depends on hardware, load and scheduling. Putting it into movement, state or hashes would make identical ordered inputs yield different results. UE accumulates wall seconds outside Core; each canonical transition receives only its integer frame and inputs. Presentation can use floating point, while authoritative state uses integer subunits and checked arithmetic. UDP additionally receives caller-provided monotonic elapsed milliseconds for transport deadlines; those are not simulation time or canonical input.
 
 ## 7. What is the accumulator/catch-up trade-off?
 
@@ -36,11 +36,11 @@ Core owns positions, velocity, HP, projectiles and collision outcomes. UE copies
 
 ## 9. How do two peers prove they do not share state?
 
-They have distinct move-only Core sessions and distinct opaque handles, each with its own world, input history, snapshots and rollback decisions. Tests advance one while observing the other unchanged, reject shared/swapped/used session pairs, and compare independent histories. The production driver communicates only encoded versioned packets. UE displays the two canonical worlds in one scene; that display arrangement does not imply shared canonical ownership. Handle inequality alone is insufficient, so behavior tests and code review check the path as well.
+They have distinct move-only Core sessions and distinct opaque handles, each with its own world, input history, snapshots and rollback decisions. Tests advance one while observing the other unchanged, reject shared/swapped/used session pairs, and compare independent histories. The production driver communicates only encoded versioned packets. UE displays the two canonical worlds in one scene; that display arrangement does not imply shared canonical ownership. Handle inequality alone is insufficient, so behavior tests and code review check the path as well. The UDP supervisor additionally checks distinct Shipping PIDs, SDK-bound ports and one session per client; the relay owns no world.
 
 ## 10. How does CLI/C API/UE hash parity support a single algorithm?
 
-Run identical scripted inputs, seeds, transport settings and frame count through the CLI, a true C11 consumer and the packaged UE executable. Compare confirmed hashes, full reports and identity, and replay bytes/reconstruction; validate exact source/DLL/artifact identity. All three delegate to the same `LiveScenario` and Core. This evidence plus dependency review constrains accidental duplication or divergence. Matching hashes alone cannot prove no collision or shared bug; a regression makes both peers equally wrong and still rejects them against canonical replay. Final packaged claims must come from the generated verifier JSON, not an Editor screenshot.
+Run identical scripted inputs, seeds, transport settings and frame count through the CLI, a true C11 consumer and the packaged UE executable. Compare confirmed hashes, full reports and identity, and replay bytes/reconstruction; validate exact source/DLL/artifact identity. All three delegate to the same `LiveScenario` and Core. This evidence plus dependency review constrains accidental duplication or divergence. Matching hashes alone cannot prove no collision or shared bug; a regression makes both peers equally wrong and still rejects them against canonical replay. Final packaged claims must come from the generated verifier JSON, not an Editor screenshot. This full report/trace equality applies to the seeded path. Real UDP uses OS scheduling, so verify the aggregate handshake profile, confirmed hash and canonical replay; counters/report identities can differ, and correction is required across the pair rather than on each endpoint.
 
 ## 11. What distinguishes prediction difference from confirmed desync?
 
@@ -52,11 +52,11 @@ A cooked build can omit the map/material, fail to stage a DLL/manifest, select a
 
 ## 13. Why is this not UE Replication, Iris or production networking?
 
-The Runtime plugin calls RollbackLab C ABI and its versioned packet-driven Core. UE presents the results; it does not replace the protocol with Replication, Iris or Network Prediction Plugin. The current UE Arena runs the seeded packet transport in one process. PACT-85's separate UE UDP clients are not delivered. The product is a bounded two-peer teaching laboratory, without the authority, security, operations and broad gameplay requirements of production networking.
+The Runtime plugin calls RollbackLab C ABI and its versioned packet-driven Core. UE presents the results; it does not replace the protocol with Replication, Iris or Network Prediction Plugin. The dual-view Arena runs seeded packets in one process; PACT-85 also runs two real Shipping UDP clients with the existing relay. Its normal runs and six negatives pass. Each client owns one session and calls the shared `PeerDriver` through C ABI. The `engine-udp-v1` digest validates ABI together with protocol/simulation/seeds/target, without inventing a new remote-ABI field in Protocol v1. The product is a bounded two-peer teaching laboratory, without the authority, security, operations and broad gameplay requirements of production networking.
 
 ## 14. Why does localhost UDP not establish WAN readiness?
 
-The CLI demo really starts a relay and two independent peer child processes, sends datagrams, checks handshake/version identity, converges, verifies replay and reaps children. Loopback still omits geographic RTT, path changes, NAT/firewalls, MTU variation, congestion, competing traffic, service deployment and adversarial conditions. The seeded emulator explores bounded policies; it is not calibrated proof of an Internet connection or production SLA.
+Both the CLI demo and the UE UDP supervisor really start a relay and two independent peer targets, send datagrams, check handshake/profile identity, converge, verify replay and reap owned children. Loopback still omits geographic RTT, path changes, NAT/firewalls, MTU variation, congestion, competing traffic, service deployment and adversarial conditions. The seeded emulator explores bounded policies; it is not calibrated proof of an Internet connection or production SLA.
 
 ## 15. What did AI do, and what can the user honestly claim?
 

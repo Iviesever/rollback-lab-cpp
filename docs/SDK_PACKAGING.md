@@ -9,7 +9,7 @@ $Sdk = "artifacts/sdk/0.2.0-$revision/install"
 ./scripts/VerifySdk.ps1 -SdkRoot $Sdk
 ```
 
-`BuildSdk` discovers MSVC, sets repository-local temporary paths, configures Ninja Release with `/MD`, runs all six CTest entries, installs, hashes and archives the SDK. It refuses a dirty source tree by default. `-AllowDirty` labels an intermediate artifact with `-working`; such an artifact cannot satisfy final evidence or the UE bridge's clean SDK contract.
+`BuildSdk` discovers MSVC, sets repository-local temporary paths, configures Ninja Release with `/MD`, runs the current CTest suite (eight entries after the UDP exception regression), installs, hashes and archives the SDK. It refuses a dirty source tree by default. `-AllowDirty` labels an intermediate artifact with `-working`; such an artifact cannot satisfy final evidence or the UE bridge's clean SDK contract.
 
 ## What the SDK contains
 
@@ -24,7 +24,9 @@ $Sdk = "artifacts/sdk/0.2.0-$revision/install"
 | `LICENSE`, `README.md`, `README-SDK.md` | License and usage information |
 | `manifest.json`, `checksums.sha256` | Complete payload identity and integrity inventory |
 
-Consumers use `find_package(rollback_lab 0.2.0 EXACT CONFIG REQUIRED)` and the exported `rollback_lab::rollback_lab_c` or `rollback_lab::rollback_lab` target. `VerifySdk` configures a separate consumer project outside the SDK's original build directory, builds genuine C11 and C++23 executables and runs both with a source-SHA check. Their two CTest entries are separate from the main six-entry suite.
+Consumers use `find_package(rollback_lab 0.2.0 EXACT CONFIG REQUIRED)` and the exported `rollback_lab::rollback_lab_c` or `rollback_lab::rollback_lab` target. `VerifySdk` configures a separate consumer project outside the SDK's original build directory, builds genuine C11 and C++23 executables and runs both with a source-SHA check. Their two CTest entries are separate from the main eight-entry suite.
+
+The current DLL has 26 exports and advertises `RL_CAP_UDP=8`. The UDP surface adds functions/records while preserving the original ABI-v1 layouts. Rebuild/stage the exact current SDK for the UDP-enabled bridge; matching the ABI number alone does not prove an older candidate contains the required exports/capability.
 
 ## Runtime and compatibility
 
@@ -62,5 +64,7 @@ artifacts/ue5-0.2/demo/0.2.0-<HEAD12>-shipping.zip
 Plugin/Demo archives have adjacent `.sha256` files. Each tree contains a version/source/configuration/engine/ABI manifest and complete checksum list. Verification rejects path traversal, junctions/symlinks, colliding paths, missing/unmanifested files, altered ZIP bytes and missing required EXE/DLL/manifest payloads. Plugin evidence includes all three build configurations. The runtime DLL and SDK manifest are staged as NonUFS files beneath the packaged plugin.
 
 Final SDK, plugin and demo must bind to the same exact **clean** Git HEAD. Commit reviewed changes first, rebuild all three, then run ordinary launch, packaged smoke and `VerifyUnrealIntegration`. That verifier checks the SDK ZIP as well as plugin/demo ZIP bytes and writes `artifacts/ue5-0.2/parity/<run>/verification.json`; its printed path and the [task matrix](../tasks/20260904-100800-ue5-live-integration-0.2/verification_matrix.md) identify accepted artifacts. Do not substitute an earlier PACT ZIP because it has the same product version.
+
+The same SDK and Shipping demo packages support `RunUdpUnrealDemo.ps1 -EngineRoot <engine> -SdkRoot <install> -DemoRoot <shipping tree> -Case Normal`. It runs two Shipping inner executables and the SDK CLI relay, producing a separate `artifacts/ue5-0.2/runs/<run>-udp-ue-<case>/summary.json`. That receipt verifies the real-process UDP path; it does not replace the seeded three-way package verifier.
 
 Generated binaries, UE content, logs, caches and archives stay in ignored repository directories and are not committed. Engine files remain read-only. Stock UBT's `Trace.uba` and backups are the sole user-approved external-cache exception; all other task output stays inside the repository.
