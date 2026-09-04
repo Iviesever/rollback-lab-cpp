@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <cstdio>
 #include <iostream>
 #include <new>
 #include <rollback_lab/c_api/rollback_lab_c.h>
@@ -14,11 +15,16 @@ namespace {
 thread_local bool fail_next_allocation = false;
 thread_local unsigned injected_allocations = 0;
 } // namespace
-// Test executable only: exercise the real SDK/Core allocation path without a
-// production fault hook. The one-shot resets before throwing, allowing cleanup
-// and failure JSON allocation after the SDK has contained the exception.
+// Fail a throwing production buffer allocation, not arbitrary STL
+// bookkeeping. MSVC Debug creates 16-byte iterator proxies in noexcept default
+// constructors; failing those deliberately terminates before Core can catch.
+// A 32-byte threshold excludes those proxies and reaches Core buffer growth
+// (canonical or packet serialization). There is no production fault hook.
 void* operator new(std::size_t size) {
-    if (std::exchange(fail_next_allocation, false)) {
+    if (fail_next_allocation && size >= 32U) {
+        fail_next_allocation = false;
+        std::fprintf(stderr, "Injected production buffer allocation size=%zu\n", size);
+        std::fflush(stderr);
         ++injected_allocations;
         throw std::bad_alloc{};
     }
