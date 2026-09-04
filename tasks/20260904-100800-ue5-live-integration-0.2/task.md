@@ -61,9 +61,9 @@ Files: native GameMode, arena actor/component pool, HUD, controller, generated m
 
 Files: shared Unreal orchestration and BuildUnrealPlugin/BuildUnrealDemo/TestUnrealIntegration/PackageUnrealDemo/VerifyUnrealIntegration scripts.
 
-- [ ] RED smoke verifier rejects missing screenshot, wrong hash, stale SHA, no rollback, failed replay, malformed JSON and watchdog.
-- [ ] GREEN bounded process orchestration, actual RHI screenshot state machine, failure trace, correct exits and teardown.
-- [ ] Fresh full Core five-config matrix, 10000-seed full repeat, structured fuzz, Automation, Editor build/load, three-target BuildPlugin, BuildCookRun, ordinary packaged launch, packaged smoke, three-way parity/replay/screenshot content audit.
+- [x] RED smoke verifier rejects missing screenshot, wrong hash, stale SHA, no rollback, failed replay, malformed JSON and watchdog.
+- [x] GREEN bounded process orchestration, actual RHI screenshot state machine, failure trace, correct exits and teardown.
+- [x] Fresh full Core five-config matrix, 10000-seed full repeat, structured fuzz, Automation, Editor build/load, three-target BuildPlugin, BuildCookRun, ordinary packaged launch, packaged smoke, three-way parity/replay/screenshot content audit.
 - [ ] Clean exact HEAD manifests and checksums; scoped commit and final artifact rerun after production changes.
 
 ## PACT-85 (conditional)
@@ -76,4 +76,3 @@ Files: shared Unreal orchestration and BuildUnrealPlugin/BuildUnrealDemo/TestUnr
 - [ ] Update all required design/packaging/testing/interview/drill/AI/candidate release docs to actual evidence.
 - [ ] Fresh read-only independent full-diff audit; fix confirmed Blocker/High and low-risk related Medium only.
 - [ ] Verify clean exact HEAD artifacts and source tree, push feature branch, create/update Draft PR, check CI and remote status, deliver prescribed final report. No merge/tag/release.
-

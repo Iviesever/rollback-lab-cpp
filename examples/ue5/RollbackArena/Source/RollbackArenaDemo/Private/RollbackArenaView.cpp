@@ -380,6 +380,14 @@ void ARollbackArenaView::Tick(float DeltaSeconds)
 #if WITH_EDITOR
         if(GShaderCompilingManager&&GShaderCompilingManager->IsCompiling())return;
 #endif
+        // Cooked builds can defer scene-proxy creation until asynchronous PSO
+        // precaching completes. HUD readiness alone does not prove meshes draw.
+        bool PresentationReady=true;
+        for(const auto& Mesh:Floors)
+            PresentationReady&=!Mesh->IsPSOPrecaching()&&Mesh->GetSceneProxy()!=nullptr&&!Mesh->IsRenderStateDirty();
+        for(const auto& Mesh:Players)
+            PresentationReady&=!Mesh->IsPSOPrecaching()&&Mesh->GetSceneProxy()!=nullptr&&!Mesh->IsRenderStateDirty();
+        if(!PresentationReady){WarmupTicks=3;return;}
         if(!bCapturePending){if(WarmupTicks>0)--WarmupTicks;else RequestCapture(TEXT("start"));}
         return;
     }

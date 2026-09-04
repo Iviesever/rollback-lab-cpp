@@ -1,6 +1,7 @@
 {
   "FileVersion": 3,
   "EngineAssociation": "5.8",
+  "DisableEnginePluginsByDefault": true,
   "Category": "Samples",
   "Description": "RollbackLab 0.2.0 Candidate - two independent rollback worlds through C ABI v1",
   "Modules": [
@@ -9,6 +10,7 @@
   ],
   "Plugins": [
     {"Name": "RollbackLabBridge", "Enabled": true},
+    {"Name": "ACLPlugin", "Enabled": true},
     {"Name": "EnhancedInput", "Enabled": false}
   ]
 }

@@ -14,6 +14,17 @@ function Get-UnrealPluginOutputPath {
     return $full
 }
 
+function Get-UnrealDemoOutputPath {
+    param([Parameter(Mandatory)][string]$Path)
+    $full=(Get-SdkRepositoryPath $Path).TrimEnd('\','/')
+    $dedicated=(Get-SdkRepositoryPath 'artifacts/ue5-0.2/demo').TrimEnd('\','/')
+    if($full -ine $dedicated -and -not $full.StartsWith($dedicated+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Demo output must stay in the dedicated demo artifact directory.'
+    }
+    Assert-UnrealOrdinaryPath $full
+    return $full
+}
+
 function Assert-UnrealOrdinaryPath {
     param([Parameter(Mandatory)][string]$Path)
     $full=Get-SdkRepositoryPath $Path
@@ -137,7 +148,7 @@ function Invoke-UnrealProcess {
 
 function Get-UnrealRuntimeArguments {
     param([Parameter(Mandatory)]$Context)
-    @('-unattended','-nop4','-nosplash','-nosound','-nowrite','-culture=en','-NoZenAutoLaunch','-DDC=(Local)',
+    @('-unattended','-nop4','-nosplash','-nosound','-nowrite','-culture=en','-notraceserver','-NoZenAutoLaunch','-DDC=(Local)',
       ('-UserDir='+ (Join-Path $Context.Run 'user')),
       ('-ShaderWorkingDir='+ (Join-Path $Context.Cache 'shaders')),
       ('-LocalDataCachePath='+ (Join-Path $Context.Cache 'ddc')),
