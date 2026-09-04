@@ -1,19 +1,39 @@
-# Code Walkthrough
+# Code walkthrough
 
-Start with these files in order:
+Read the same execution path from deterministic state to an actual engine process. UE does not own a second implementation of the algorithm.
 
-1. `include/rollback_lab/simulation/state.hpp` — the entire integer canonical state and hard capacity/range constants.
-2. `src/simulation/simulation.cpp` — the pure one-frame movement, attack, projectile, collision, damage, score, and serialization transition.
-3. `include/rollback_lab/netcode/session.hpp` and `src/netcode/session.cpp` — prediction, tagged rings, snapshot boundary, late-input detection, rollback, confirmation, and metrics.
-4. `include/rollback_lab/protocol/packet.hpp` and `src/protocol/codec.cpp` — the socket-independent wire contract and fail-closed decoder.
-5. `src/transport/seeded_transport.cpp` — PCG32 logical scheduling and bounded hostile-network policies.
-6. `src/report/scenario_runner.cpp` — two independent sessions connected only by encoded packet bytes.
-7. `src/replay/replay.cpp` — strict confirmed-input persistence and reconstruction.
-8. `src/report/desync.cpp` and `src/report/canonical_json.cpp` — confirmed-only diagnosis and stable artifacts.
-9. `src/transport/udp_socket.cpp`, `src/transport/process.cpp`, and `src/udp/*.cpp` — actual OS datagrams, child lifecycle, opaque relay, peers, and supervisor.
-10. `src/report/viewer.cpp` — production trace embedded into a no-CDN HTML inspector.
+## Core and packets
 
-Tests call these public APIs directly. `tests/unit/rollback_session_test.cpp` is the clearest executable explanation of boundary semantics. `tests/protocol/protocol_transport_test.cpp` documents hostile input behavior. `tests/udp/udp_demo_test.cpp` proves separate processes and bounded negative paths.
+1. [state.hpp](../include/rollback_lab/simulation/state.hpp) defines the entire integer canonical state and hard capacity/range constants. [simulation.cpp](../src/simulation/simulation.cpp) performs one pure frame: movement, attack, projectiles, collision, damage, score and canonical serialization.
+2. [session.hpp](../include/rollback_lab/netcode/session.hpp) and [session.cpp](../src/netcode/session.cpp) own prediction, tagged history rings, snapshot boundaries, late actual input, earliest-dirty rollback, confirmation and metrics. A snapshot labeled F precedes input frame F; restore F and replay `[F,current)`.
+3. [packet.hpp](../include/rollback_lab/protocol/packet.hpp), [codec.cpp](../src/protocol/codec.cpp) and [sequence_window.cpp](../src/protocol/sequence_window.cpp) define versioned wire fields, strict decoding and bounded duplicate/out-of-order handling. No engine or socket types belong here.
+4. [seeded_transport.cpp](../src/transport/seeded_transport.cpp) schedules encoded packets using PCG32 and bounded loss, delay, reorder, duplication, queue, bandwidth and age policies.
+5. [live_scenario.hpp](../include/rollback_lab/report/live_scenario.hpp) and [scenario_runner.cpp](../src/report/scenario_runner.cpp) contain the incremental production scenario. It borrows two independent sessions and connects them only through packets. The ordinary runner loops this driver; embeddings advance it one logical tick at a time.
+6. [replay.cpp](../src/replay/replay.cpp), [desync.cpp](../src/report/desync.cpp) and [canonical_json.cpp](../src/report/canonical_json.cpp) reconstruct confirmed inputs, diagnose confirmed differences and write stable artifacts. Timing and source build metadata are observations, while deterministic identity has an explicit definition.
 
-The CLI in `src/cli/commands.cpp` intentionally remains orchestration: it parses, calls production APIs, writes files, and measures outer timing. If gameplay, codec, or rollback logic appears there, the dependency boundary has regressed.
+Useful executable explanations are [rollback_session_test.cpp](../tests/unit/rollback_session_test.cpp), [protocol_transport_test.cpp](../tests/protocol/protocol_transport_test.cpp) and [live_scenario_test.cpp](../tests/integration/live_scenario_test.cpp). The last file checks exact compatibility with the existing sample replay, trace, hash and report identity.
 
+## C ABI and SDK
+
+7. [rollback_lab_c.h](../include/rollback_lab/c_api/rollback_lab_c.h) is the complete C11 boundary: 19 exports, opaque handles, fixed-width records, explicit statuses, version/size prefixes and caller-owned buffers.
+8. [session_api.cpp](../src/c_api/session_api.cpp), [live_api.cpp](../src/c_api/live_api.cpp) and [internal.hpp](../src/c_api/internal.hpp) validate arguments and thread access, contain exceptions, copy snapshots, guard borrowed sessions and delegate to Core. Find the driver-before-session ownership rule before reading any engine code.
+9. [session_api_test.cpp](../tests/c_api/session_api_test.cpp) compares 128 delayed-input C++/C scenarios. [live_test.cpp](../tests/c_api/live_test.cpp) compares 128 complete packet scenarios and rejects symmetric faulty peers against the canonical replay. [live_consumer.c](../tests/c_api/live_consumer.c) is a real C11 report/replay producer.
+10. [CMakeLists.txt](../CMakeLists.txt), [BuildSdk.ps1](../scripts/BuildSdk.ps1) and [VerifySdk.ps1](../scripts/VerifySdk.ps1) establish install/export, Release `/MD`, manifests, ZIP/SHA checks and the independent [consumer project](../tests/c_api/consumer/CMakeLists.txt).
+
+## UE ownership, clock and presentation
+
+11. [RollbackLabBridge.Build.cs](../examples/ue5/RollbackArena/Plugins/RollbackLabBridge/Source/RollbackLabBridge/RollbackLabBridge.Build.cs) validates the staged SDK, configures include/import paths and RuntimeDependencies, and embeds expected source/manifest identity.
+12. [RollbackLabSdk.cpp](../examples/ue5/RollbackArena/Plugins/RollbackLabBridge/Source/RollbackLabBridge/Private/RollbackLabSdk.cpp) validates manifest/DLL integrity, acquires an owned DLL reference, resolves every export and checks the loaded version. The external-preload lifecycle test explains why a borrowed module handle was insufficient.
+13. [RollbackLabRuntime.cpp](../examples/ue5/RollbackArena/Plugins/RollbackLabBridge/Source/RollbackLabBridge/Private/RollbackLabRuntime.cpp) owns two sessions and their borrowing driver, copies views/correction revisions, implements the bounded 1/60-second accumulator and stops resources in reverse dependency order.
+14. [RollbackLabSubsystem.cpp](../examples/ue5/RollbackArena/Plugins/RollbackLabBridge/Source/RollbackLabBridge/Private/RollbackLabSubsystem.cpp) and [RollbackLabBridgeModule.cpp](../examples/ue5/RollbackArena/Plugins/RollbackLabBridge/Source/RollbackLabBridge/Private/RollbackLabBridgeModule.cpp) connect native ownership to Deinitialize, pre-exit and shutdown. Inspect [BridgeLifecycleTests.cpp](../examples/ue5/RollbackArena/Plugins/RollbackLabBridge/Source/RollbackLabBridgeTests/Private/BridgeLifecycleTests.cpp) and [BridgePIETests.cpp](../examples/ue5/RollbackArena/Plugins/RollbackLabBridge/Source/RollbackLabBridgeTests/Private/BridgePIETests.cpp) next.
+15. [RollbackArenaModel.cpp](../examples/ue5/RollbackArena/Source/RollbackArenaDemo/Private/RollbackArenaModel.cpp) translates validated mode/network settings and local button input into the borrowed Runtime. It owns no simulator, packet scheduler or fixed-step clock.
+16. [RollbackArenaView.cpp](../examples/ue5/RollbackArena/Source/RollbackArenaDemo/Private/RollbackArenaView.cpp) samples/latches input and projects copied state into bounded reusable geometry. [RollbackArenaHUD.cpp](../examples/ue5/RollbackArena/Source/RollbackArenaDemo/Private/RollbackArenaHUD.cpp) reads a cached view and shows actual metrics. Neither may write Actor transforms back into Core.
+17. [RollbackArenaGameMode.cpp](../examples/ue5/RollbackArena/Source/RollbackArenaDemo/Private/RollbackArenaGameMode.cpp) selects the native HUD, avoids a physics-owned Pawn and spawns the presentation Actor. `ARollbackArenaView` validates launch options, starts the mode and owns smoke/export/capture/exit orchestration. The actual [PlayerController input regression](../examples/ue5/RollbackArena/Source/RollbackArenaDemo/Private/RollbackArenaInputTests.cpp) exercises short taps through PIE, not only a model call.
+
+## Process and packaged evidence
+
+18. [PackageUnrealDemo.ps1](../scripts/PackageUnrealDemo.ps1) reuses native build/content entrypoints and performs BuildCookRun. [LaunchPackagedUnrealArena.ps1](../scripts/LaunchPackagedUnrealArena.ps1) starts the normal executable or smoke. [ProcessRunner.cs](../scripts/native/ProcessRunner.cs) owns roots/descendants through a Win64 job and preserves actual process status.
+19. [UnrealEvidence.ps1](../scripts/UnrealEvidence.ps1) and [VerifyUnrealIntegration.ps1](../scripts/VerifyUnrealIntegration.ps1) verify complete artifact trees/archives, process outcome, nested reports, screenshot files, CLI/C/UE identity and replay. Build success alone does not execute this proof.
+20. The existing [udp_socket.cpp](../src/transport/udp_socket.cpp), [process.cpp](../src/transport/process.cpp), [UDP sources](../src/udp/) and [UDP tests](../tests/udp/udp_demo_test.cpp) remain the real localhost relay/two-peer process path. [viewer.cpp](../src/report/viewer.cpp) embeds actual trace into the self-contained inspector. UE-over-UDP is a separate deferred scope.
+
+The [CLI](../src/cli/commands.cpp) and engine GameMode should remain orchestration. Simulation, codec, rollback or hash logic added there would break the dependency boundary. To explain the project aloud, follow one local button through C ABI advance, one late packet through earliest-dirty restore/resimulation, and the copied correction back to the two views. Then follow teardown in reverse.
