@@ -53,9 +53,9 @@ Files: UE project/plugin descriptors, Build.cs/Target.cs, native module and subs
 
 Files: native GameMode, arena actor/component pool, HUD, controller, generated map script.
 
-- [ ] RED mode/control/smoke state machine tests: scripted real rollback, pause exact zero steps, single-step one tick, reset clears resources, network presets bounded, confirmed-only desync.
-- [ ] GREEN two side-by-side arenas, readonly pooled shapes, full metrics/seeds/version HUD, actual correction pre/post ghosts/arrows/flash.
-- [ ] Editor ordinary interactive launch; keyboard controls; Automation; capture and inspect screenshots; scoped commit.
+- [x] RED mode/control/smoke state machine tests: scripted real rollback, pause exact zero steps, single-step one tick, reset clears resources, network presets bounded, confirmed-only desync.
+- [x] GREEN two side-by-side arenas, readonly pooled shapes, full metrics/seeds/version HUD, actual correction pre/post ghosts/arrows/flash.
+- [x] Editor ordinary interactive launch; keyboard controls; Automation; capture and inspect screenshots; scoped commit.
 
 ## PACT-84
 
@@ -76,3 +76,4 @@ Files: shared Unreal orchestration and BuildUnrealPlugin/BuildUnrealDemo/TestUnr
 - [ ] Update all required design/packaging/testing/interview/drill/AI/candidate release docs to actual evidence.
 - [ ] Fresh read-only independent full-diff audit; fix confirmed Blocker/High and low-risk related Medium only.
 - [ ] Verify clean exact HEAD artifacts and source tree, push feature branch, create/update Draft PR, check CI and remote status, deliver prescribed final report. No merge/tag/release.
+

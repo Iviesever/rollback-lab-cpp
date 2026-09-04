@@ -7,5 +7,6 @@ public class RollbackArenaEditorTarget : TargetRules
         DefaultBuildSettings = BuildSettingsVersion.Latest;
         IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
         ExtraModuleNames.Add("RollbackArenaDemo");
+        ExtraModuleNames.Add("RollbackArenaTools");
     }
 }

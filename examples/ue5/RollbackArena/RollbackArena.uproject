@@ -3,6 +3,12 @@
   "EngineAssociation": "5.8",
   "Category": "Samples",
   "Description": "RollbackLab 0.2.0 Candidate - two independent rollback worlds through C ABI v1",
-  "Modules": [{"Name": "RollbackArenaDemo", "Type": "Runtime", "LoadingPhase": "Default"}],
-  "Plugins": [{"Name": "RollbackLabBridge", "Enabled": true}]
+  "Modules": [
+    {"Name": "RollbackArenaDemo", "Type": "Runtime", "LoadingPhase": "Default"},
+    {"Name": "RollbackArenaTools", "Type": "Editor", "LoadingPhase": "Default"}
+  ],
+  "Plugins": [
+    {"Name": "RollbackLabBridge", "Enabled": true},
+    {"Name": "EnhancedInput", "Enabled": false}
+  ]
 }

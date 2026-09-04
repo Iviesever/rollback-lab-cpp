@@ -84,6 +84,8 @@ function New-UnrealContext {
         $env:DOTNET_CLI_HOME = Join-Path $cache 'dotnet'
         $env:NUGET_PACKAGES = Join-Path $cache 'nuget'
         $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE='1'; $env:DOTNET_CLI_TELEMETRY_OPTOUT='1'
+        $env:VSLANG='1033'
+        $env:PYTHONDONTWRITEBYTECODE='1'
         $env:uebp_EngineSavedFolder = Join-Path $cache 'EngineSaved'
         $env:uebp_LogFolder = Join-Path $run 'uat'; $env:uebp_FinalLogFolder=$env:uebp_LogFolder
         $dotnetRoot=Join-Path $engine 'Engine/Binaries/ThirdParty/DotNet/10.0/win-x64'
