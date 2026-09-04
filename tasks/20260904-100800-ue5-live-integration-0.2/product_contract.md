@@ -1,5 +1,9 @@
 # RollbackLab 0.2.0：UE 5.8 Live Integration `/goal`
 
+## Explicit user amendment (2026-09-04)
+
+The user explicitly permits only stock UE 5.8 UBT's `UnrealBuildTool/Trace.uba` and its backups to use the default user-cache directory, because the normal tool entrypoint hardcodes that path without a supported redirect. This narrow exception overrides the all-logs-in-repository requirement for those diagnostic files only. All other source, dependencies, temporary build data, logs, caches, screenshots, reports and packages remain inside this repository. Engine files remain strictly read-only.
+
 在现有 `<repository-root>` 仓库中，将已合并的 RollbackLab 0.1.0 推进为 RollbackLab 0.2.0 Release Candidate：把现有引擎无关的确定性 C++23 回滚核心封装为可嵌入 SDK，通过稳定的 C ABI 接入 Unreal Engine 5.8，并交付一个可交互、可自动验证、可打包的双视角实时回滚竞技场。
 
 不要创建新 GitHub 仓库，不要复制第二套模拟逻辑，不要把 Unreal Actor 状态当作权威模拟状态。持续自主工作，直到所有 P0 验收条件通过、完整验证证据已生成、功能分支已推送并建立 Draft PR；不要在只完成 C API、只通过 Editor、只做出视觉原型或只通过编译时提前结束。

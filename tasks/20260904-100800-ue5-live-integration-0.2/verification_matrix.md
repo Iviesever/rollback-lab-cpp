@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | Fresh base / branch / GitHub | fetched base 5b250ebc985f8e098e7d613e9cab7b0897482cc9; PR 1 merged; CI success; no tags/releases/issues | Passed |
 | Baseline Debug / Release / fuzz / property / CLI / replay / desync / UDP / viewer | PACT-80 baseline.md and ignored raw logs | Passed; relative UDP output defect recorded |
-| DLL + UE standalone spike | PACT-80 BuildPlugin outputs, 3 configs and equal DLL SHA | Passed; global UBA trace containment still under investigation |
+| DLL + UE standalone spike | PACT-80 BuildPlugin outputs, 3 configs and equal DLL SHA | Passed; user permits only default UBT trace/backups outside repository |
 | C11 / C++ consumers, ABI negatives / isolation | CTest | Pending |
 | Direct C++ / C ABI 100+ scenarios | parity test | Pending |
 | SDK install/export/find_package/ZIP/manifest/SHA | BuildSdk + VerifySdk | Pending |

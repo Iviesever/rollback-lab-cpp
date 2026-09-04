@@ -3,6 +3,8 @@
 #include <rollback_lab/cli/commands.hpp>
 
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -51,4 +53,23 @@ RL_TEST(cli_simulate_replay_verify_benchmark_and_compare_use_real_artifacts) {
 
     std::filesystem::remove_all(output, error);
     RL_CHECK(!error);
+}
+
+RL_TEST(cli_simulate_accepts_full_width_seed_identity_and_rejects_overflow) {
+    const auto output = std::filesystem::temp_directory_path() / "rollback_lab_cli_seeds";
+    RL_REQUIRE(call({"rollback_lab", "simulate", "--frames", "30",
+                     "--scenario-seed", "18446744073709551615", "--transport-seed", "4294967301",
+                     "--out", output.string()}) == 0);
+    std::ifstream stream{output / "report.json"};
+    const std::string json{std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
+    RL_CHECK(json.find("\"scenario_seed\":18446744073709551615") != std::string::npos);
+    RL_CHECK(json.find("\"transport_seed\":4294967301") != std::string::npos);
+    RL_CHECK(call({"rollback_lab", "simulate", "--frames", "1", "--scenario-seed",
+                   "18446744073709551616", "--out", output.string()}) != 0);
+    RL_CHECK(call({"rollback_lab", "simulate", "--frames", "1", "--out", output.string(),
+                   "--scenario-seed"}) == 2);
+    RL_CHECK(call({"rollback_lab", "simulate", "--frames", "1", "--out", output.string(),
+                   "--transport-seed", ""}) == 2);
+    stream.close();
+    std::filesystem::remove_all(output);
 }

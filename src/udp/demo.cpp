@@ -183,8 +183,13 @@ auto run_udp_demo(const UdpDemoConfig& config) -> Result<UdpDemoResult> {
                   "udp_demo_config"});
     }
     std::error_code filesystem_error;
-    std::filesystem::create_directories(config.output_directory,
-                                        filesystem_error);
+    // ChildProcess may use the executable directory as its working directory.
+    // Resolve the supervisor's paths once before sharing them with children.
+    const auto output_directory = std::filesystem::absolute(
+        config.output_directory, filesystem_error);
+    if (!filesystem_error) {
+        std::filesystem::create_directories(output_directory, filesystem_error);
+    }
     if (filesystem_error) {
         return Result<UdpDemoResult>::failure(
             Error{ErrorCode::io_error,
@@ -211,13 +216,13 @@ auto run_udp_demo(const UdpDemoConfig& config) -> Result<UdpDemoResult> {
     const auto peer_a_port = peer_a_port_result.value();
     const auto peer_b_port = peer_b_port_result.value();
 
-    const auto ready_file = config.output_directory / "relay.ready";
-    const auto report_a = config.output_directory / "peer-a-report.json";
-    const auto report_b = config.output_directory / "peer-b-report.json";
-    const auto replay_a = config.output_directory / "peer-a-input.rlr";
-    const auto replay_b = config.output_directory / "peer-b-input.rlr";
-    const auto diagnostic_a = config.output_directory / "peer-a-desync.json";
-    const auto diagnostic_b = config.output_directory / "peer-b-desync.json";
+    const auto ready_file = output_directory / "relay.ready";
+    const auto report_a = output_directory / "peer-a-report.json";
+    const auto report_b = output_directory / "peer-b-report.json";
+    const auto replay_a = output_directory / "peer-a-input.rlr";
+    const auto replay_b = output_directory / "peer-b-input.rlr";
+    const auto diagnostic_a = output_directory / "peer-a-desync.json";
+    const auto diagnostic_b = output_directory / "peer-b-desync.json";
     for (const auto& path : {ready_file, report_a, report_b, replay_a, replay_b,
                              diagnostic_a, diagnostic_b}) {
         std::filesystem::remove(path, filesystem_error);
