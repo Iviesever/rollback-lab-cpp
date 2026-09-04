@@ -49,6 +49,13 @@ struct FApi
     RL_DECLARE(rl_live_copy_report)
     RL_DECLARE(rl_live_copy_trace)
     RL_DECLARE(rl_live_copy_replay)
+    RL_DECLARE(rl_udp_peer_create)
+    RL_DECLARE(rl_udp_peer_destroy)
+    RL_DECLARE(rl_udp_peer_step)
+    RL_DECLARE(rl_udp_peer_get_correction)
+    RL_DECLARE(rl_udp_peer_copy_report)
+    RL_DECLARE(rl_udp_peer_copy_replay)
+    RL_DECLARE(rl_udp_peer_copy_failure)
 #undef RL_DECLARE
 };
 

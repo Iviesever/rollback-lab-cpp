@@ -130,6 +130,16 @@ if(ROLLBACK_LAB_BUILD_TESTS AND BUILD_TESTING)
     add_test(NAME c_abi_udp_tests COMMAND rollback_lab_udp_api_tests)
     set_tests_properties(c_abi_udp_tests PROPERTIES TIMEOUT 60)
 
+    # A separate executable confines the one-shot global allocation override to
+    # this test while exercising the actual SDK facade and Core implementation.
+    add_executable(rollback_lab_udp_exception_tests
+        tests/udp/peer_exception_test.cpp src/c_api/session_api.cpp src/c_api/udp_api.cpp)
+    target_compile_definitions(rollback_lab_udp_exception_tests PRIVATE ROLLBACK_LAB_C_EXPORTS)
+    target_link_libraries(rollback_lab_udp_exception_tests PRIVATE rollback_lab)
+    rollback_lab_set_warnings(rollback_lab_udp_exception_tests)
+    add_test(NAME c_abi_udp_exception_test COMMAND rollback_lab_udp_exception_tests)
+    set_tests_properties(c_abi_udp_exception_test PROPERTIES TIMEOUT 30)
+
     add_executable(rollback_lab_tests
         tests/test_main.cpp
         tests/test_smoke.cpp

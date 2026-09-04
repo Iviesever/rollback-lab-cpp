@@ -1,6 +1,7 @@
 #include "RollbackLabRuntime.h"
 #include "RollbackLabSdk.h"
 #include "HAL/PlatformTLS.h"
+#include "HAL/PlatformTime.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
 #include <cmath>
@@ -48,17 +49,33 @@ struct FDriverOwner final
     }
 };
 
+struct FUdpOwner final
+{
+    TSharedPtr<FSdk> Library;
+    rl_udp_peer* Handle = nullptr;
+    ~FUdpOwner()
+    {
+        if (Handle != nullptr)
+        {
+            const rl_status Status = Library->Api.rl_udp_peer_destroy(Handle);
+            checkf(Status == RL_OK, TEXT("RollbackLab UDP driver destruction failed: %u"), Status);
+            --DriverCount;
+        }
+    }
+};
+
 struct FRunResources final
 {
     TSharedPtr<FSdk> Library;
     FSessionOwner Peers[2];
-    FDriverOwner Driver; // Destroyed before Peers, then the final Library lease.
+    FDriverOwner Driver; // Drivers are destroyed before Peers, then Library.
+    FUdpOwner Udp;
 };
 
 constexpr uint32 MaximumArtifactBytes = 64U * 1024U * 1024U;
 
-template <typename CopyFunction>
-FResult CopyString(rl_live* Driver, CopyFunction Copy, FString& Output, const TCHAR* Operation)
+template <typename DriverType, typename CopyFunction>
+FResult CopyString(DriverType* Driver, CopyFunction Copy, FString& Output, const TCHAR* Operation)
 {
     uint32 Required = 0;
     rl_status Status = Copy(Driver, nullptr, 0, &Required);
@@ -95,6 +112,13 @@ FStartOptions::FStartOptions()
     Scenario.bandwidth_bytes_per_tick = 1U << 20U;
     Scenario.max_packet_age_ticks = 600;
     Scenario.tail_redundancy_ticks = 64;
+    Udp.api_version = RL_API_VERSION;
+    Udp.struct_size = sizeof(Udp);
+    Udp.scenario_seed = UINT64_C(12648430);
+    Udp.transport_seed = UINT64_C(0x55445030);
+    Udp.frame_count = 240;
+    Udp.handshake_timeout_ms = 15000;
+    Udp.run_timeout_ms = 15000;
 }
 
 struct FRuntime::FImpl
@@ -103,6 +127,8 @@ struct FRuntime::FImpl
     TUniquePtr<FRunResources> Resources;
     FPeerView Peers[2];
     rl_live_step_result LastStep = Initialized<rl_live_step_result>();
+    rl_udp_step_result LastUdpStep = Initialized<rl_udp_step_result>();
+    double UdpCreatedAt = 0.0;
     rl_version_info Version = Initialized<rl_version_info>();
     FClockState Clock;
     FResult LastResult;
@@ -125,6 +151,7 @@ struct FRuntime::FImpl
         FPeerView Updated[2] = {Peers[0], Peers[1]};
         for (uint32 Peer = 0; Peer < 2; ++Peer)
         {
+            if (Resources->Peers[Peer].Handle == nullptr) { Updated[Peer] = {}; continue; }
             Updated[Peer].Snapshot = Initialized<rl_world_snapshot>();
             Updated[Peer].Metrics = Initialized<rl_metrics>();
             rl_status Status = Resources->Library->Api.rl_session_get_snapshot(Resources->Peers[Peer].Handle, &Updated[Peer].Snapshot);
@@ -139,7 +166,9 @@ struct FRuntime::FImpl
             if (bReadCorrections)
             {
                 rl_live_correction Correction = Initialized<rl_live_correction>();
-                Status = Resources->Library->Api.rl_live_get_correction(Resources->Driver.Handle, Peer, &Correction);
+                Status = Resources->Udp.Handle != nullptr
+                    ? Resources->Library->Api.rl_udp_peer_get_correction(Resources->Udp.Handle, &Correction)
+                    : Resources->Library->Api.rl_live_get_correction(Resources->Driver.Handle, Peer, &Correction);
                 if (Status != RL_OK) return SdkResult(Status, TEXT("rl_live_get_correction"));
                 if (Correction.performed != 0)
                 {
@@ -155,6 +184,23 @@ struct FRuntime::FImpl
 
     FResult AdvanceOne(bool bOverrideLocalInput, uint32 Buttons)
     {
+        if (Resources->Udp.Handle != nullptr)
+        {
+            rl_udp_step_result Step = Initialized<rl_udp_step_result>();
+            // Real monotonic elapsed time is a transport deadline, never a
+            // canonical simulation input or fabricated accumulated frame time.
+            const uint64 ElapsedMs = static_cast<uint64>(FMath::Max(0.0, FPlatformTime::Seconds() - UdpCreatedAt) * 1000.0);
+            const rl_status Status = Resources->Library->Api.rl_udp_peer_step(Resources->Udp.Handle, ElapsedMs, &Step);
+            LastUdpStep = Step;
+            LastStep.logical_tick = Step.logical_tick;
+            LastStep.finished = Step.finished;
+            LastStep.desync_detected = Step.desync_detected;
+            LastStep.earliest_divergent_frame = Step.earliest_divergent_frame;
+            const FResult Refreshed = RefreshViews(true);
+            if (Status != RL_OK || !Refreshed.IsOk()) bFailed = true;
+            // Keep failed resources alive until evidence copies precede Stop.
+            return Status != RL_OK ? SdkResult(Status, TEXT("rl_udp_peer_step")) : Refreshed;
+        }
         rl_live_step_result Step = Initialized<rl_live_step_result>();
         const rl_status Status = Resources->Library->Api.rl_live_step(Resources->Driver.Handle, bOverrideLocalInput ? 1U : 0U, Buttons, &Step);
         if (Status != RL_OK)
@@ -190,10 +236,13 @@ FResult FRuntime::Start(const FStartOptions& Options)
     Impl->Peers[0] = {};
     Impl->Peers[1] = {};
     Impl->LastStep = Initialized<rl_live_step_result>();
+    Impl->LastUdpStep = Initialized<rl_udp_step_result>();
     Impl->Version = Initialized<rl_version_info>();
     Impl->Clock = {};
     Impl->bFailed = false;
 
+    if (Options.bUdp && (Options.LocalPeer > RL_PEER_B || Options.UdpVariant > RL_VARIANT_DAMAGE_BIAS))
+        return Impl->LastResult = Failure(EError::InvalidArgument, TEXT("UDP local peer or simulation variant is invalid."), RL_INVALID_ARGUMENT);
     TUniquePtr<FRunResources> Created = MakeUnique<FRunResources>();
     FResult Result = LoadSdk(Options, Created->Library);
     if (!Result.IsOk())
@@ -203,25 +252,40 @@ FResult FRuntime::Start(const FStartOptions& Options)
     }
     for (uint32 Peer = 0; Peer < 2; ++Peer)
     {
+        if (Options.bUdp && Peer != Options.LocalPeer) continue;
         Created->Peers[Peer].Library = Created->Library;
         rl_session_config Config = Initialized<rl_session_config>();
         Config.local_peer = Peer;
         Config.max_rollback_frames = 120;
-        Config.simulation_variant = Peer == RL_PEER_B ? Options.PeerBVariant : RL_VARIANT_CANONICAL;
+        Config.simulation_variant = Options.bUdp ? Options.UdpVariant
+            : (Peer == RL_PEER_B ? Options.PeerBVariant : RL_VARIANT_CANONICAL);
         const rl_status Status = Created->Library->Api.rl_session_create(&Config, &Created->Peers[Peer].Handle);
         if (Created->Peers[Peer].Handle != nullptr) ++SessionCount;
         if (Status != RL_OK) return Impl->LastResult = SdkResult(Status, TEXT("rl_session_create"));
         if (Created->Peers[Peer].Handle == nullptr)
             return Impl->LastResult = Failure(EError::SdkFailure, TEXT("SDK returned success without a session handle."), RL_INTERNAL_FAILURE);
     }
-    if (Created->Peers[0].Handle == Created->Peers[1].Handle)
-        return Impl->LastResult = Failure(EError::SdkFailure, TEXT("SDK returned aliased peer handles."), RL_INTERNAL_FAILURE);
-    Created->Driver.Library = Created->Library;
-    const rl_status Status = Created->Library->Api.rl_live_create(&Options.Scenario, Created->Peers[0].Handle, Created->Peers[1].Handle, &Created->Driver.Handle);
-    if (Created->Driver.Handle != nullptr) ++DriverCount;
-    if (Status != RL_OK) return Impl->LastResult = SdkResult(Status, TEXT("rl_live_create"));
-    if (Created->Driver.Handle == nullptr)
-        return Impl->LastResult = Failure(EError::SdkFailure, TEXT("SDK returned success without a live driver."), RL_INTERNAL_FAILURE);
+    if (Options.bUdp)
+    {
+        Created->Udp.Library = Created->Library;
+        Impl->UdpCreatedAt = FPlatformTime::Seconds();
+        const rl_status Status = Created->Library->Api.rl_udp_peer_create(&Options.Udp, Created->Peers[Options.LocalPeer].Handle, &Created->Udp.Handle);
+        if (Created->Udp.Handle != nullptr) ++DriverCount;
+        if (Status != RL_OK) return Impl->LastResult = SdkResult(Status, TEXT("rl_udp_peer_create"));
+        if (Created->Udp.Handle == nullptr)
+            return Impl->LastResult = Failure(EError::SdkFailure, TEXT("SDK returned success without a UDP driver."), RL_INTERNAL_FAILURE);
+    }
+    else
+    {
+        if (Created->Peers[0].Handle == Created->Peers[1].Handle)
+            return Impl->LastResult = Failure(EError::SdkFailure, TEXT("SDK returned aliased peer handles."), RL_INTERNAL_FAILURE);
+        Created->Driver.Library = Created->Library;
+        const rl_status Status = Created->Library->Api.rl_live_create(&Options.Scenario, Created->Peers[0].Handle, Created->Peers[1].Handle, &Created->Driver.Handle);
+        if (Created->Driver.Handle != nullptr) ++DriverCount;
+        if (Status != RL_OK) return Impl->LastResult = SdkResult(Status, TEXT("rl_live_create"));
+        if (Created->Driver.Handle == nullptr)
+            return Impl->LastResult = Failure(EError::SdkFailure, TEXT("SDK returned success without a live driver."), RL_INTERNAL_FAILURE);
+    }
     Impl->Version = Created->Library->Version;
     Impl->Resources = MoveTemp(Created);
     Result = Impl->RefreshViews(false);
@@ -298,6 +362,10 @@ void FRuntime::SetPaused(bool bPaused)
 }
 bool FRuntime::IsRunning() const { check(Impl->OnOwnerThread()); return Impl->Running(); }
 bool FRuntime::IsFinished() const { check(Impl->OnOwnerThread()); return Impl->LastStep.finished != 0; }
+bool FRuntime::IsUdp() const { check(Impl->OnOwnerThread()); return Impl->Resources.IsValid() && Impl->Resources->Udp.Handle != nullptr; }
+bool FRuntime::IsPeerActive(uint32 Peer) const { check(Impl->OnOwnerThread() && Peer < 2); return Impl->Peers[Peer].HandleIdentity != 0; }
+uint32 FRuntime::GetLocalPeer() const { check(Impl->OnOwnerThread()); return Impl->LastOptions.LocalPeer; }
+const rl_udp_step_result& FRuntime::GetLastUdpStep() const { check(Impl->OnOwnerThread()); return Impl->LastUdpStep; }
 const FPeerView& FRuntime::GetPeer(uint32 Peer) const { check(Impl->OnOwnerThread() && Peer < 2); return Impl->Peers[Peer]; }
 const rl_live_step_result& FRuntime::GetLastStep() const { check(Impl->OnOwnerThread()); return Impl->LastStep; }
 const rl_version_info& FRuntime::GetVersionInfo() const { check(Impl->OnOwnerThread()); return Impl->Version; }
@@ -308,6 +376,8 @@ FResult FRuntime::CopyReport(FString& Output) const
 {
     const FResult Access = Impl->CheckAccess(false);
     if (!Access.IsOk()) return Access;
+    if (Impl->Resources->Udp.Handle != nullptr)
+        return CopyString(Impl->Resources->Udp.Handle, Impl->Resources->Library->Api.rl_udp_peer_copy_report, Output, TEXT("rl_udp_peer_copy_report"));
     return CopyString(Impl->Resources->Driver.Handle, Impl->Resources->Library->Api.rl_live_copy_report, Output, TEXT("rl_live_copy_report"));
 }
 
@@ -315,7 +385,17 @@ FResult FRuntime::CopyTrace(FString& Output) const
 {
     const FResult Access = Impl->CheckAccess(false);
     if (!Access.IsOk()) return Access;
+    if (Impl->Resources->Udp.Handle != nullptr) return CopyFailure(Output);
     return CopyString(Impl->Resources->Driver.Handle, Impl->Resources->Library->Api.rl_live_copy_trace, Output, TEXT("rl_live_copy_trace"));
+}
+
+FResult FRuntime::CopyFailure(FString& Output) const
+{
+    const FResult Access = Impl->CheckAccess(false);
+    if (!Access.IsOk()) return Access;
+    if (Impl->Resources->Udp.Handle == nullptr)
+        return Failure(EError::InvalidArgument, TEXT("UDP status requires a UDP run."), RL_INVALID_ARGUMENT);
+    return CopyString(Impl->Resources->Udp.Handle, Impl->Resources->Library->Api.rl_udp_peer_copy_failure, Output, TEXT("rl_udp_peer_copy_failure"));
 }
 
 FResult FRuntime::CopyReplay(TArray<uint8>& Output) const
@@ -323,16 +403,23 @@ FResult FRuntime::CopyReplay(TArray<uint8>& Output) const
     const FResult Access = Impl->CheckAccess(false);
     if (!Access.IsOk()) return Access;
     uint32 Required = 0;
-    const auto Copy = Impl->Resources->Library->Api.rl_live_copy_replay;
-    rl_status Status = Copy(Impl->Resources->Driver.Handle, nullptr, 0, &Required);
-    if (Status != RL_BUFFER_TOO_SMALL) return SdkResult(Status == RL_OK ? RL_INTERNAL_FAILURE : Status, TEXT("rl_live_copy_replay"));
+    const TCHAR* Operation = Impl->Resources->Udp.Handle != nullptr ? TEXT("rl_udp_peer_copy_replay") : TEXT("rl_live_copy_replay");
+    const auto Copy = [this](uint8* Buffer, uint32 Capacity, uint32* Size)
+    {
+        const auto& Resources = *Impl->Resources;
+        return Resources.Udp.Handle != nullptr
+            ? Resources.Library->Api.rl_udp_peer_copy_replay(Resources.Udp.Handle, Buffer, Capacity, Size)
+            : Resources.Library->Api.rl_live_copy_replay(Resources.Driver.Handle, Buffer, Capacity, Size);
+    };
+    rl_status Status = Copy(nullptr, 0, &Required);
+    if (Status != RL_BUFFER_TOO_SMALL) return SdkResult(Status == RL_OK ? RL_INTERNAL_FAILURE : Status, Operation);
     if (Required == 0 || Required > MaximumArtifactBytes)
         return Failure(EError::SdkFailure, TEXT("SDK replay exceeds its bounded buffer contract."), RL_CAPACITY);
     TArray<uint8> Bytes;
     Bytes.SetNumUninitialized(static_cast<int32>(Required));
     const uint32 Capacity = Required;
-    Status = Copy(Impl->Resources->Driver.Handle, Bytes.GetData(), Capacity, &Required);
-    if (Status != RL_OK) return SdkResult(Status, TEXT("rl_live_copy_replay"));
+    Status = Copy(Bytes.GetData(), Capacity, &Required);
+    if (Status != RL_OK) return SdkResult(Status, Operation);
     if (Required == 0 || Required > Capacity)
         return Failure(EError::SdkFailure, TEXT("SDK replay returned an invalid byte count."), RL_INTERNAL_FAILURE);
     Bytes.SetNum(static_cast<int32>(Required), EAllowShrinking::No);

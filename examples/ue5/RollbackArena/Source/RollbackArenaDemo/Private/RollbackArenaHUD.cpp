@@ -11,6 +11,18 @@ const FLinearColor Muted(0.32f,0.45f,0.57f);
 const FLinearColor Cyan(0.12f,0.95f,0.92f);
 const FLinearColor Coral(1.0f,0.31f,0.36f);
 const FLinearColor Gold(1.0f,0.7f,0.25f);
+const TCHAR* UdpPhase(uint32 Phase)
+{
+    switch(Phase)
+    {
+    case RL_UDP_HANDSHAKE:return TEXT("HANDSHAKE");
+    case RL_UDP_RUNNING:return TEXT("RUNNING");
+    case RL_UDP_CONFIRMING:return TEXT("CONFIRMING");
+    case RL_UDP_FINISHED:return TEXT("CONVERGED");
+    case RL_UDP_FAILED:return TEXT("FAILED");
+    default:return TEXT("UNKNOWN");
+    }
+}
 FString HashText(uint64 Value){return FString::Printf(TEXT("0x%016llX"),Value);}
 }
 
@@ -29,10 +41,10 @@ void ARollbackArenaHUD::PeerPanel(uint32 Peer,float S)
 {
     const auto* Model=Arena->GetModel();if(!Model)return;
     const auto& Runtime=Model->Runtime();const auto& View=Runtime.GetPeer(Peer);
-    const float X=(Peer==0?80.0f:850.0f)*S;
+    const float X=(Runtime.IsUdp()?420.0f:(Peer==0?80.0f:850.0f))*S;
     const FLinearColor Accent=Peer==0?Cyan:Coral;
     const bool Confirmed=View.Metrics.confirmed_frame==View.Snapshot.frame;
-    Label(Peer==0?TEXT("PEER A"):TEXT("PEER B"),X,202*S,20*S,Accent);
+    Label(Runtime.IsUdp()?(Peer==0?TEXT("UDP A"):TEXT("UDP B")):(Peer==0?TEXT("PEER A"):TEXT("PEER B")),X,202*S,20*S,Accent);
     Label(Confirmed?TEXT("CONFIRMED STATE"):TEXT("PREDICTED STATE"),X+124*S,207*S,12*S,Confirmed?Cyan:Gold);
     Label(HashText(View.Snapshot.state_hash),X+376*S,205*S,15*S,Ink);
 
@@ -97,27 +109,38 @@ void ARollbackArenaHUD::DrawHUD()
     DrawRect(FLinearColor(0.012f,0.021f,0.034f),0,0,Canvas->SizeX,184*S);
     DrawRect(FLinearColor(0.012f,0.021f,0.034f),0,673*S,Canvas->SizeX,227*S);
     Label(TEXT("ROLLBACK LAB"),80*S,32*S,30*S,Ink);
-    Label(TEXT("UE 5.8 LIVE INTEGRATION  /  TWO INDEPENDENT PEER WORLDS"),82*S,77*S,12*S,Muted);
+    const auto* Model=Arena?Arena->GetModel():nullptr;
+    const bool Udp=Model&&Model->GetSettings().Mode==RollbackArena::EMode::UdpPeer;
+    Label(Udp?TEXT("UE 5.8 LIVE INTEGRATION  /  ONE LOCAL PEER WORLD"):
+        TEXT("UE 5.8 LIVE INTEGRATION  /  TWO INDEPENDENT PEER WORLDS"),82*S,77*S,12*S,Muted);
     if(!Arena)return;
-    if(!Arena->GetFailure().IsEmpty())
+    const bool ConfirmedUdpDesync=Udp&&Model->Runtime().GetLastUdpStep().desync_detected!=0;
+    if(!Arena->GetFailure().IsEmpty()&&!ConfirmedUdpDesync)
     {
         Label(TEXT("INTEGRATION FAILURE"),80*S,250*S,26*S,Coral);
         Label(Arena->GetFailure(),80*S,298*S,16*S,Ink);
         Label(TEXT("ESC  QUIT"),80*S,850*S,13*S,Muted);return;
     }
-    const auto* Model=Arena->GetModel();if(!Model)return;
+    if(!Model)return;
     const auto& Runtime=Model->Runtime();const auto& Settings=Model->GetSettings();const auto& Net=Model->GetOptions().Scenario;
     const auto& Step=Runtime.GetLastStep();
     FString Status=Runtime.IsFinished()?TEXT("CONFIRMED CONVERGENCE"):(Runtime.GetClockState().bPaused?TEXT("PAUSED"):RollbackArena::FModel::ModeName(Settings.Mode));
+    if(Udp)Status=FString::Printf(TEXT("UDP %s  /  %s"),Settings.LocalPeer==RL_PEER_A?TEXT("A"):TEXT("B"),UdpPhase(Runtime.GetLastUdpStep().phase));
     if(Step.desync_detected)Status=FString::Printf(TEXT("CONFIRMED DESYNC  /  FRAME %u"),Step.earliest_divergent_frame);
     Label(Status,980*S,36*S,18*S,Step.desync_detected?Coral:Cyan);
     Label(FString::Printf(TEXT("LOGICAL TICK %u   /   SDK 0.2.0   ABI %u"),Step.logical_tick,Runtime.GetVersionInfo().api_version),980*S,76*S,12*S,Muted);
-    Label(FString::Printf(TEXT("%s    LATENCY %uT / %ums    JITTER +/- %uT    LOSS %u%%    REORDER %u%%    DUPLICATE %u%%"),
-        RollbackArena::FModel::PresetName(Settings.NetworkPreset),Net.base_latency_ticks,Net.base_latency_ticks*1000U/60U,Net.jitter_ticks,Net.loss_percent,Net.reorder_percent,Net.duplicate_percent),80*S,116*S,13*S,Ink);
+    if(Udp)
+        Label(FString::Printf(TEXT("UDP %s    RELAY 127.0.0.1:%u    ENGINE-UDP-V1 / ABI PROFILE %u    %s"),
+            Settings.LocalPeer==RL_PEER_A?TEXT("A"):TEXT("B"),Settings.RelayPort,
+            Settings.HelloAbi?Settings.HelloAbi:RL_API_VERSION,UdpPhase(Runtime.GetLastUdpStep().phase)),80*S,116*S,13*S,Ink);
+    else
+        Label(FString::Printf(TEXT("%s    LATENCY %uT / %ums    JITTER +/- %uT    LOSS %u%%    REORDER %u%%    DUPLICATE %u%%"),
+            RollbackArena::FModel::PresetName(Settings.NetworkPreset),Net.base_latency_ticks,Net.base_latency_ticks*1000U/60U,Net.jitter_ticks,Net.loss_percent,Net.reorder_percent,Net.duplicate_percent),80*S,116*S,13*S,Ink);
     Label(FString::Printf(TEXT("SCENARIO SEED  %llu     TRANSPORT SEED  %llu"),Settings.ScenarioSeed,Settings.TransportSeed),80*S,150*S,12*S,Muted);
-    PeerPanel(0,S);PeerPanel(1,S);
+    for(uint32 Peer=0;Peer<2;++Peer)if(Runtime.IsPeerActive(Peer))PeerPanel(Peer,S);
     DrawLine(80*S,838*S,1520*S,838*S,FLinearColor(0.1f,0.18f,0.25f),1*S);
-    Label(TEXT("1 AUTO   2 INTERACTIVE   3 DESYNC     WASD / ARROWS MOVE   SPACE FIRE     P PAUSE   . STEP   R RESET   N NETWORK   ESC QUIT"),80*S,859*S,12*S,Ink);
+    Label(Udp?TEXT("SCRIPTED UDP SCENARIO    /    ESC ABORT"):
+        TEXT("1 AUTO   2 INTERACTIVE   3 DESYNC     WASD / ARROWS MOVE   SPACE FIRE     P PAUSE   . STEP   R RESET   N NETWORK   ESC QUIT"),80*S,859*S,12*S,Ink);
     if(Runtime.GetClockState().DiscardedSeconds>0.01)
         Label(FString::Printf(TEXT("WALL DEBT DISCARDED %.2fs"),Runtime.GetClockState().DiscardedSeconds),1190*S,151*S,11*S,Gold);
 }

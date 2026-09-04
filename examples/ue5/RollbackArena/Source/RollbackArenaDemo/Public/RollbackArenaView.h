@@ -37,11 +37,13 @@ private:
     TWeakObjectPtr<APlayerController> Controller;
     TUniquePtr<RollbackArena::FModel> Model;
     FDelegateHandle ScreenshotHandle;
-    FString Failure, CaptureDirectory, TracePath, RequestedGitSha, PendingCaptureName;
+    FString Failure, CaptureDirectory, TracePath, ReadyPath, RequestedGitSha, PendingCaptureName;
     uint64 SeenCorrection[2]{};
     float CorrectionAge[2]{10.0f,10.0f};
     double StartedAt=0.0, ExitAfterSeconds=0.0;
     bool bSmoke=false, bCapturePending=false, bStartCaptured=false;
+    bool bUdpMode=false, bUdpSmoke=false, bFailureCapturePending=false, bFailureCaptureAttempted=false;
+    RollbackArena::FSettings RequestedSettings;
     bool bCorrectionCaptured=false, bFinalCaptured=false, bWritten=false, bExiting=false;
     uint32 WarmupTicks=3;
     uint32 PendingButtons=0;
@@ -54,6 +56,7 @@ private:
     void RequestCapture(const FString& Name);
     void ScreenshotProcessed();
     bool SaveEvidence(bool bSuccess);
+    bool SaveUdpEvidence(bool bSuccess);
     void Fail(const FString& Reason);
     void Quit(uint8 Status);
 };

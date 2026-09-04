@@ -446,7 +446,7 @@ struct PeerDriver::Impl final {
         config.listen_port = socket.local_port();
         runtime.local_history.reserve(config.frame_count);
     }
-    auto fail(Error error) -> Result<PeerStep> {
+    auto fail(Error error) noexcept -> Result<PeerStep> {
         failure = error; observation.phase = PeerPhase::failed;
         return Result<PeerStep>::failure(error);
     }
@@ -501,7 +501,7 @@ auto PeerDriver::failure_json() const -> std::string {
         << (diagnostic.ok() ? diagnostic.value() : "null") << "}\n";
     return out.str();
 }
-auto PeerDriver::step(const std::uint64_t elapsed) -> Result<PeerStep> {
+auto PeerDriver::step(const std::uint64_t elapsed) -> Result<PeerStep> try {
     auto& i = *impl_;
     if (i.failure) return Result<PeerStep>::failure(*i.failure);
     if (i.observation.phase == PeerPhase::finished) return Result<PeerStep>::success(i.observation);
@@ -562,6 +562,10 @@ auto PeerDriver::step(const std::uint64_t elapsed) -> Result<PeerStep> {
     }
     ++i.observation.logical_tick;
     return Result<PeerStep>::success(i.observation);
+} catch (...) {
+    // This failure transition must not allocate: even bad_alloc leaves both
+    // native observations and the C ABI's sticky error in the same state.
+    return impl_->fail(Error{ErrorCode::internal_failure, 0U, 0U, "udp_internal_exception"});
 }
 
 auto run_peer(const PeerConfig& config) -> Result<int> {

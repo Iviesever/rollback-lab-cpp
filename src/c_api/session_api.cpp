@@ -11,6 +11,7 @@ auto to_status(const rollback_lab::ErrorCode code) noexcept -> rl_status {
     using rollback_lab::ErrorCode;
     switch (code) {
     case ErrorCode::none: return RL_OK;
+    case ErrorCode::internal_failure: return RL_INTERNAL_FAILURE;
     case ErrorCode::invalid_argument: return RL_INVALID_ARGUMENT;
     case ErrorCode::frame_mismatch: return RL_INVALID_FRAME;
     case ErrorCode::stale_frame: return RL_STALE_FRAME;

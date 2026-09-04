@@ -8,7 +8,8 @@ enum class EMode : uint8
 {
     AutoDemo,
     Interactive,
-    Desync
+    Desync,
+    UdpPeer
 };
 
 struct FSettings
@@ -18,6 +19,15 @@ struct FSettings
     uint64 TransportSeed = UINT64_C(5351397);
     uint32 FrameCount = 240;
     uint32 NetworkPreset = 1;
+    uint32 LocalPeer = RL_PEER_A;
+    uint32 ListenPort = 0;
+    uint32 RelayPort = 0;
+    uint32 UdpVariant = RL_VARIANT_CANONICAL;
+    uint32 HelloProtocol = 0;
+    uint32 HelloSimulation = 0;
+    uint32 HelloAbi = 0;
+    uint32 HandshakeTimeoutMs = 15000;
+    uint32 RunTimeoutMs = 15000;
 };
 
 // Game-thread settings/input adapter. The subsystem owns the borrowed runtime.

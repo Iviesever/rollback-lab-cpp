@@ -185,13 +185,23 @@ FResult LoadSdk(const FStartOptions& Options, TSharedPtr<FSdk>& Output)
     RL_RESOLVE(rl_live_copy_report)
     RL_RESOLVE(rl_live_copy_trace)
     RL_RESOLVE(rl_live_copy_replay)
+    if (Options.bUdp)
+    {
+        RL_RESOLVE(rl_udp_peer_create)
+        RL_RESOLVE(rl_udp_peer_destroy)
+        RL_RESOLVE(rl_udp_peer_step)
+        RL_RESOLVE(rl_udp_peer_get_correction)
+        RL_RESOLVE(rl_udp_peer_copy_report)
+        RL_RESOLVE(rl_udp_peer_copy_replay)
+        RL_RESOLVE(rl_udp_peer_copy_failure)
+    }
 #undef RL_RESOLVE
 
     Library->Version = Initialized<rl_version_info>();
     const rl_status Status = Library->Api.rl_get_version(&Library->Version);
     if (Status != RL_OK) return SdkResult(Status, TEXT("rl_get_version"));
     const rl_version_info& Version = Library->Version;
-    constexpr uint64 RequiredCapabilities = RL_CAP_SESSION | RL_CAP_LIVE | RL_CAP_CANONICAL_BYTES;
+    const uint64 RequiredCapabilities = RL_CAP_SESSION | RL_CAP_LIVE | RL_CAP_CANONICAL_BYTES | (Options.bUdp ? RL_CAP_UDP : UINT64_C(0));
     if (Version.api_version != RL_API_VERSION || Version.struct_size != sizeof(Version) ||
         Version.sdk_major != 0 || Version.sdk_minor != 2 || Version.sdk_patch != 0 ||
         Version.simulation_version != 1 || Version.protocol_version != 1 || Version.replay_version != 1 ||

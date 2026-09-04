@@ -25,6 +25,10 @@ struct ROLLBACKLABBRIDGE_API FStartOptions
     FStartOptions();
     rl_live_config Scenario{};
     uint32 PeerBVariant = RL_VARIANT_CANONICAL;
+    bool bUdp = false;
+    uint32 LocalPeer = RL_PEER_A;
+    uint32 UdpVariant = RL_VARIANT_CANONICAL;
+    rl_udp_config Udp{};
     // Empty uses the plugin's staged SDK and compiled exact source identity.
     FString SdkRootOverride;
     FString ExpectedSourceGitSha;
@@ -77,6 +81,10 @@ public:
 
     bool IsRunning() const;
     bool IsFinished() const;
+    bool IsUdp() const;
+    bool IsPeerActive(uint32 Peer) const;
+    uint32 GetLocalPeer() const;
+    const rl_udp_step_result& GetLastUdpStep() const;
     const FPeerView& GetPeer(uint32 Peer) const;
     const rl_live_step_result& GetLastStep() const;
     const rl_version_info& GetVersionInfo() const;
@@ -84,6 +92,7 @@ public:
     const FResult& GetLastResult() const;
     FResult CopyReport(FString& Output) const;
     FResult CopyTrace(FString& Output) const;
+    FResult CopyFailure(FString& Output) const;
     FResult CopyReplay(TArray<uint8>& Output) const;
 
     static FString DefaultSdkRoot();

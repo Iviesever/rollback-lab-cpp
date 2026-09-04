@@ -238,4 +238,35 @@ bool FArenaModelBorrowing::RunTest(const FString&)
     TestFalse(TEXT("Owner explicitly stops runtime"), Runtime.IsRunning());
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FArenaModelUdp, "RollbackLab.Arena.Model.UdpConfigurationAndInactiveSlot", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FArenaModelUdp::RunTest(const FString&)
+{
+    FSettings Settings = FModel::DefaultSettings(EMode::UdpPeer);
+    TestEqual(TEXT("UDP scenario matches relay profile"), Settings.ScenarioSeed, UINT64_C(12648430));
+    TestEqual(TEXT("UDP transport seed is domain specific"), Settings.TransportSeed, UINT64_C(0x55445030));
+    TestEqual(TEXT("UDP bounds match complete replay history"), Settings.FrameCount, 240U);
+    Settings.LocalPeer = RL_PEER_B;
+    Settings.RelayPort = 9;
+    FRuntime Runtime;
+    FModel Model(Runtime);
+    if (!StartModel(*this, Model, Settings)) return false;
+    TestTrue(TEXT("Model uses UDP driver"), Model.GetOptions().bUdp);
+    TestEqual(TEXT("Model maps real local peer B"), Model.GetOptions().LocalPeer, RL_PEER_B);
+    TestEqual(TEXT("Model preserves OS-assigned listen port request"), Model.GetOptions().Udp.listen_port, 0U);
+    TestEqual(TEXT("Only local B owns a session"), Runtime.GetPeer(RL_PEER_A).HandleIdentity, static_cast<UPTRINT>(0));
+    TestTrue(TEXT("Scripted UDP ignores sampled user input"), Model.Step(RL_BUTTON_LEFT | RL_BUTTON_ATTACK).IsOk());
+    TestEqual(TEXT("No relay leaves local B at frame zero"), Runtime.GetPeer(RL_PEER_B).Snapshot.frame, 0U);
+    const UPTRINT Handle = Runtime.GetPeer(RL_PEER_B).HandleIdentity;
+    FSettings Invalid = Settings; Invalid.FrameCount = 241;
+    TestFalse(TEXT("UDP cannot exceed complete replay history"), Model.Start(Invalid).IsOk());
+    Invalid = Settings; Invalid.LocalPeer = 2;
+    TestFalse(TEXT("Invalid UDP peer rejected before teardown"), Model.Start(Invalid).IsOk());
+    Invalid = Settings; Invalid.RelayPort = 0;
+    TestFalse(TEXT("UDP requires relay endpoint"), Model.Start(Invalid).IsOk());
+    Invalid = Settings; Invalid.HelloProtocol = 65536;
+    TestFalse(TEXT("UDP protocol advertisement must fit its wire field"), Model.Start(Invalid).IsOk());
+    TestFalse(TEXT("Seeded in-process presets do not restart UDP"), Model.ChangePreset(2).IsOk());
+    TestEqual(TEXT("Rejected options preserve actual borrowed run"), Runtime.GetPeer(RL_PEER_B).HandleIdentity, Handle);
+    return true;
+}
 #endif

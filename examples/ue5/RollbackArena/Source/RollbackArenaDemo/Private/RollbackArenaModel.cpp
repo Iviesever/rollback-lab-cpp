@@ -56,6 +56,22 @@ RollbackLabBridge::FStartOptions MakeOptions(const FSettings& Settings)
     }
     Options.PeerBVariant = Settings.Mode == EMode::Desync
         ? RL_VARIANT_DAMAGE_BIAS : RL_VARIANT_CANONICAL;
+    if (Settings.Mode == EMode::UdpPeer)
+    {
+        Options.bUdp = true;
+        Options.LocalPeer = Settings.LocalPeer;
+        Options.UdpVariant = Settings.UdpVariant;
+        Options.Udp.scenario_seed = Settings.ScenarioSeed;
+        Options.Udp.transport_seed = Settings.TransportSeed;
+        Options.Udp.frame_count = Settings.FrameCount;
+        Options.Udp.listen_port = Settings.ListenPort;
+        Options.Udp.relay_port = Settings.RelayPort;
+        Options.Udp.handshake_timeout_ms = Settings.HandshakeTimeoutMs;
+        Options.Udp.run_timeout_ms = Settings.RunTimeoutMs;
+        Options.Udp.advertised_protocol_version = Settings.HelloProtocol;
+        Options.Udp.advertised_simulation_version = Settings.HelloSimulation;
+        Options.Udp.advertised_abi_profile_version = Settings.HelloAbi;
+    }
     return Options;
 }
 }
@@ -69,6 +85,7 @@ FSettings FModel::DefaultSettings(EMode Mode)
     Result.Mode = Mode;
     if (Mode == EMode::Interactive) Result.FrameCount = 36000;
     if (Mode == EMode::Desync) Result.ScenarioSeed = 1;
+    if (Mode == EMode::UdpPeer) Result.TransportSeed = UINT64_C(0x55445030);
     return Result;
 }
 
@@ -79,6 +96,7 @@ const TCHAR* FModel::ModeName(EMode Mode)
     case EMode::AutoDemo: return TEXT("Auto demo");
     case EMode::Interactive: return TEXT("Interactive");
     case EMode::Desync: return TEXT("Desync");
+    case EMode::UdpPeer: return TEXT("UDP peer");
     }
     return TEXT("Unknown");
 }
@@ -97,12 +115,21 @@ const TCHAR* FModel::PresetName(uint32 Preset)
 RollbackLabBridge::FResult FModel::Start(const FSettings& RequestedSettings)
 {
     if (RequestedSettings.Mode != EMode::AutoDemo && RequestedSettings.Mode != EMode::Interactive &&
-        RequestedSettings.Mode != EMode::Desync)
+        RequestedSettings.Mode != EMode::Desync && RequestedSettings.Mode != EMode::UdpPeer)
         return InvalidSettings(TEXT("Arena mode is not supported."));
     if (RequestedSettings.FrameCount == 0 || RequestedSettings.FrameCount > 36000)
         return InvalidSettings(TEXT("Arena frame count must be between 1 and 36000."));
     if (RequestedSettings.NetworkPreset > 2)
         return InvalidSettings(TEXT("Arena network preset must be Local, Default or Hostile."));
+
+    if (RequestedSettings.Mode == EMode::UdpPeer &&
+        (RequestedSettings.FrameCount > 240 || RequestedSettings.LocalPeer > RL_PEER_B ||
+         RequestedSettings.UdpVariant > RL_VARIANT_DAMAGE_BIAS || RequestedSettings.ListenPort > 65535 || RequestedSettings.HelloProtocol > 65535 ||
+         RequestedSettings.RelayPort == 0 || RequestedSettings.RelayPort > 65535 ||
+         (RequestedSettings.ListenPort != 0 && RequestedSettings.ListenPort == RequestedSettings.RelayPort) ||
+         RequestedSettings.HandshakeTimeoutMs == 0 || RequestedSettings.HandshakeTimeoutMs > 60000 ||
+         RequestedSettings.RunTimeoutMs == 0 || RequestedSettings.RunTimeoutMs > 60000))
+        return InvalidSettings(TEXT("UDP peer, ports, timeouts or target exceed the SDK contract."));
 
     RollbackLabBridge::FStartOptions Candidate = MakeOptions(RequestedSettings);
     const RollbackLabBridge::FResult Result = BorrowedRuntime.Start(Candidate);
@@ -125,6 +152,7 @@ RollbackLabBridge::FResult FModel::ChangePreset(uint32 Preset)
 {
     if (Preset > 2) return InvalidSettings(TEXT("Arena network preset must be Local, Default or Hostile."));
     if (!bHasSettings) return NotStarted();
+    if (Settings.Mode == EMode::UdpPeer) return InvalidSettings(TEXT("UDP transport is configured by its relay, not an in-process preset."));
     FSettings Next = Settings;
     Next.NetworkPreset = Preset;
     return Start(Next);
