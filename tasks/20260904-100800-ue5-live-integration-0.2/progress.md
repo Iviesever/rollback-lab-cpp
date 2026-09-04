@@ -1,7 +1,7 @@
 # Resume checkpoint
 
-- Current PACT: PACT-81 implemented and final five-configuration regression passed after independent review fixes. PACT-82 production has not started.
-- Exact HEAD: 138c9a4e02b8ad38ee0446dffedf543647045728 (PACT-80 decision). Current working changes belong to this task; original checkout was clean.
+- Current PACT: PACT-81 committed and clean SDK verified. PACT-82 failing UE Runtime scaffold + Automation RED in progress.
+- Exact HEAD: c4b37358eb2506fd6159ffc476ac4ef5c89c4db0 (PACT-81). Current working changes belong to this task; original checkout was clean.
 - Branch: feat/ue5-live-integration-0.2; fresh base 5b250ebc985f8e098e7d613e9cab7b0897482cc9 equals origin/main. PR #1 merged, initial CI green, no tags/releases/open issues.
 - Changed contracts: C ABI v1, package 0.2.0 candidate, single-thread-affine opaque sessions, driver borrowing, sized copied output, bounded live configuration, actual pre/post correction snapshots. C session accepts current/past inputs only; caller queues future inputs. Final success requires peer hashes equal canonical replay hash. Simulation/protocol/replay/trace versions and old sample identities unchanged. CLI adds strict optional full-width seeds and normalizes UDP output before spawning.
 - Commands: baseline MSVC workflows and CLI/UDP/replay; actual C11 DLL + UE BuildPlugin spike; TDD compile REDs; CTest; BuildSdk -AllowDirty + VerifySdk; sdk_manifest_test; two CLI/C report/replay parity runs; full five-config matrix; ASan standalone UDP and 20-run stress; fresh read-only PACT-81 audit and narrow recheck.
@@ -15,3 +15,10 @@
 - Quota/time: 2026-09-04 10:56 UTC+8; last quota 53% remaining at 10:33. No reset authorized/consumed. Freeze 2026-09-05 11:30 UTC+8 or 15%; hard stop 15:00 UTC+8. UDP-UE optional eligibility only after P0 green.
 - Next action: finish matrix; write PACT-81 evidence/matrix, scoped commit; BuildSdk/VerifySdk from clean exact HEAD; then Runtime plugin/fixed-step/lifecycle Automation, dual arena, packaged smoke and docs through PACT-86; push/create Draft PR when ready. Do not stop at SDK.
 - Agents: c_abi_sdk implementation complete; ue_spike_review investigation complete; pact81_audit fresh read-only review complete (3 findings fixed/rechecked). No child currently running. Parent owns all Unreal processes.
+
+- PACT-81 clean SDK: artifacts/sdk/0.2.0-c4b37358eb25/install; ZIP SHA256 660888f8c46712c4d52761a6056260696b18f92549bdd911fdacc0723e1cd566. BuildSdk/VerifySdk/8 negative checks passed. New PACT-82 source changes are task-owned.
+- PACT-82: UE agent owns plugin only, 16 Automation tests with explicit NotImplemented stubs. Parent owns project/scripts, SDK staged under plugin Binaries/ThirdParty/RollbackLab. First Editor build Rules CS0012 System.Memory from JsonDocument.Parse; compile-only fix uses native EpicGames.Core.JsonObject. Second build running; inspect artifacts/ue5-0.2/pact82-build-red-2.txt and newest runs directory. Agent waits for actual Automation RED before real runtime implementation.
+
+- UE RED proven: Editor build runs/20260904-112004-188-demo-build succeeded (46.41s); Automation runs/20260904-112259-771-automation index.json failed16/succeeded0/notRun0 due explicit NotImplemented stubs. TestUnrealIntegration returns1 even though stock TestExit exits0. UE agent now authorized to implement GREEN in plugin-only paths. No UE process is running.
+
+- PACT-82 complete pre-commit: 18/18 UE Automation0warnings inclactual3PIEcycles; latest runs/20260904-121024-926-automation, all9jobprocessesexited; BuildPlugin3targets green runs/20260904-121156-248-plugin (62s); CoreDebug/Release6/6. Job supervision5tests andpathguard7RED->0GREEN; independentreview2Mediumfixed/rechecked. DLLownedreferencebugfixed; actualPIEtest prematureCancel fixed. See evidence/PACT-82.md. No processrunning. Next: commitBridge, cleanSDK fornewHEAD, then PACT83 Arena/UI/model/contentgenerator.

@@ -1,0 +1,17 @@
+{
+  "FileVersion": 3,
+  "Version": 200,
+  "VersionName": "0.2.0-candidate",
+  "EngineVersion": "5.8.0",
+  "FriendlyName": "RollbackLab Bridge",
+  "Description": "Verified C ABI access to two independent deterministic rollback peers.",
+  "Category": "Simulation",
+  "CreatedBy": "RollbackLab",
+  "CanContainContent": false,
+  "IsBetaVersion": true,
+  "SupportedTargetPlatforms": ["Win64"],
+  "Modules": [
+    { "Name": "RollbackLabBridge", "Type": "Runtime", "LoadingPhase": "Default", "PlatformAllowList": ["Win64"] },
+    { "Name": "RollbackLabBridgeTests", "Type": "Editor", "LoadingPhase": "PostEngineInit", "PlatformAllowList": ["Win64"] }
+  ]
+}

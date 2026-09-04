@@ -19,4 +19,8 @@
 *.log
 .DS_Store
 Thumbs.db
-
+/examples/ue5/**/Binaries/
+/examples/ue5/**/Intermediate/
+/examples/ue5/**/Saved/
+/examples/ue5/**/DerivedDataCache/
+/examples/ue5/**/*.sln

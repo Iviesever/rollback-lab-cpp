@@ -39,15 +39,15 @@ Files: `src/c_api/live_api.cpp`, C header live declarations, `tests/c_api/live_t
 - [x] GREEN: adapt LiveScenario through C structs and sized JSON/replay copy exports; create/destroy guards borrow lifetime.
 - [x] RED relative UDP output: use a relative path from CTest build cwd and verify supervisor plus all peer files.
 - [x] GREEN relative UDP output: resolve once to an absolute output directory before subprocess composition, retain all protocol behavior.
-- [ ] Full Core MSVC Debug/Release and SDK regressions; evidence + scoped commit.
+- [x] Full Core MSVC Debug/Release and SDK regressions; evidence + scoped commit (PACT-81 c4b37358).
 
 ## PACT-82
 
 Files: UE project/plugin descriptors, Build.cs/Target.cs, native module and subsystem, fixed-step wrapper, Automation tests, SDK staging script.
 
-- [ ] RED Automation: missing/wrong manifest/DLL/ABI/export/SHA, two sessions, repeated reset/deinitialize and bounded accumulator.
-- [ ] GREEN Runtime module resolves DLL exports after manifest/file validation; release owned sessions before unloading; subsystem wraps native RAII, fixed step 1/60 with cap 8.
-- [ ] Focused Automation, independent BuildPlugin, Core regression, scoped commit.
+- [x] RED Automation: missing/wrong manifest/DLL/ABI/export/SHA, two sessions, repeated reset/deinitialize and bounded accumulator.
+- [x] GREEN Runtime module resolves DLL exports after manifest/file validation; release owned sessions before unloading; subsystem wraps native RAII, fixed step 1/60 with cap 8.
+- [x] Focused Automation, independent BuildPlugin, Core regression; scoped PACT-82 commit follows verified evidence.
 
 ## PACT-83
 
