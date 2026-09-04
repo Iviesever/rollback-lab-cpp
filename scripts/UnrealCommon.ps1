@@ -107,9 +107,9 @@ function New-UnrealContext {
         $xmlCache=Join-Path $cache 'BuildConfiguration.bin'
         # UE 5.8 XmlConfigData v2: no input files or overrides; retain tool defaults.
         [IO.File]::WriteAllBytes($xmlCache,[byte[]](2,0,0,0,0,0,0,0,0,0,0,0))
-        $env:UBT_EXTRA_ARGS='-XmlConfigCache="'+$xmlCache+'" -NoUBA -NoXGE -MaxParallelActions=4'
+        $env:UBT_EXTRA_ARGS='-XmlConfigCache="'+$xmlCache+'" -WaitMutex -NoUBA -NoXGE -MaxParallelActions=4'
         [pscustomobject]@{Engine=$engine; Run=$run; Cache=$cache; Lock=$lock;
-            UbtArguments=@(('-XmlConfigCache='+$xmlCache),'-NoUBA','-NoXGE','-MaxParallelActions=4');
+            UbtArguments=@(('-XmlConfigCache='+$xmlCache),'-WaitMutex','-NoUBA','-NoXGE','-MaxParallelActions=4');
             Dotnet=(Join-Path $dotnetRoot 'dotnet.exe');
             Ubt=(Join-Path $engine 'Engine/Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.dll');
             Uat=(Join-Path $engine 'Engine/Binaries/DotNET/AutomationTool/AutomationTool.dll');

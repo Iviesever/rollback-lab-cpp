@@ -12,7 +12,7 @@ try {
     # do not inherit options their mode cannot consume.
     $env:UBT_EXTRA_ARGS=$null
     Invoke-UnrealProcess -Context $context -FilePath $context.Dotnet -Name 'build-demo' -Arguments (@(
-        $context.Ubt,$target,'Win64',$Configuration,('-Project='+$context.Project),'-WaitMutex','-NoHotReloadFromIDE',
+        $context.Ubt,$target,'Win64',$Configuration,('-Project='+$context.Project),'-NoHotReloadFromIDE',
         ('-Log='+ (Join-Path $context.Run 'ubt.log')))+$context.UbtArguments)
     Write-Output "Built $target $Configuration; logs: $($context.Run)"
 } finally {$env:UBT_EXTRA_ARGS=$previousExtraArgs; $context.Lock.Dispose()}

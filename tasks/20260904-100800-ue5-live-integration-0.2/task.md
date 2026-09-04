@@ -73,6 +73,6 @@ Files: shared Unreal orchestration and BuildUnrealPlugin/BuildUnrealDemo/TestUnr
 
 ## PACT-86
 
-- [ ] Update all required design/packaging/testing/interview/drill/AI/candidate release docs to actual evidence.
-- [ ] Fresh read-only independent full-diff audit; fix confirmed Blocker/High and low-risk related Medium only.
+- [x] Update all required design/packaging/testing/interview/drill/AI/candidate release docs to actual evidence.
+- [x] Fresh read-only independent full-diff audit; fix confirmed Blocker/High and low-risk related Medium only.
 - [ ] Verify clean exact HEAD artifacts and source tree, push feature branch, create/update Draft PR, check CI and remote status, deliver prescribed final report. No merge/tag/release.

@@ -1,26 +1,35 @@
 # 0.2 verification matrix
 
-| Gate | Proof | Status |
+This table records completed validation checkpoints. It does not relabel an older
+artifact as final: deliverable SDK, Plugin, Demo and smoke records must agree on
+one clean source SHA. The final integration JSON records that SHA and hashes all
+three ZIPs, reports, replay files and screenshots. Raw outputs remain under the
+ignored `artifacts/ue5-0.2` directory; the scoped evidence documents are committed.
+
+| Gate | Verified checkpoint | Result |
 | --- | --- | --- |
-| Fresh base / branch / GitHub | fetched base 5b250ebc985f8e098e7d613e9cab7b0897482cc9; PR 1 merged; CI success; no tags/releases/issues | Passed |
-| Baseline Debug / Release / fuzz / property / CLI / replay / desync / UDP / viewer | PACT-80 baseline.md and ignored raw logs | Passed; relative UDP output defect recorded |
-| DLL + UE standalone spike | PACT-80 BuildPlugin outputs, 3 configs and equal DLL SHA | Passed; user permits only default UBT trace/backups outside repository |
-| C11 / C++ consumers, ABI negatives / isolation | PACT-81 current matrix and clean SDK c4b37358 | Passed |
-| Direct C++ / C ABI 100+ scenarios | 128 session + 128 live scenarios, current matrix | Passed |
-| SDK install/export/find_package/ZIP/manifest/SHA | Clean c4b37358 SDK, 2/2 installed consumers, 8 manifest tests | Passed for PACT-81; final HEAD refresh required |
-| Core MSVC Debug / Release | fresh configure/build/CTest | Pending |
-| Core Clang Debug / Release | fresh configure/build/CTest | Pending |
-| ASan + UBSan / structured fuzz | sanitizer CTest | Pending |
-| 10,000 seeds twice | full property sweep JSON | Pending |
-| UE Automation / lifecycle / fixed-step / isolation / integrity | TestUnrealIntegration | Pending |
-| Editor build / load | BuildUnrealDemo + launch log | Pending |
-| BuildPlugin Editor / Game Development / Shipping | BuildUnrealPlugin | Pending |
-| BuildCookRun Win64 | PackageUnrealDemo | Pending |
-| Ordinary packaged launch | bounded process and screenshot | Pending |
-| Packaged smoke / rollback / confirmation / 3-way parity | VerifyUnrealIntegration | Pending |
-| JSON reparse / replay / 3 screenshots inspected | trace + images | Pending |
-| Stage / manifests / SHA / exact clean HEAD | artifact audit | Pending |
-| Logs Error / Warning audit | explicit classified log findings | Pending |
-| Documentation / AI authorship / independent review | PACT-86 audit | Pending |
-| Clean pushed feature / Draft PR | Git and GitHub fresh checks | Pending |
-| Optional UDP-UE | eligibility gate and evidence or deferral | Not started |
+| Fresh base / branch / GitHub | fetched `5b250ebc985f8e098e7d613e9cab7b0897482cc9`; PR1 merged; feature branch | Passed; fetch repeated after PACT84 |
+| Original baseline / CLI / replay / desync / UDP / viewer | [PACT80](evidence/PACT-80/baseline.md), preserved sample identities | Passed |
+| C11 / C++ consumers, ABI negatives and independent handles | [PACT81](evidence/PACT-81.md); two installed consumers | Passed, including clean `3dce71e5` SDK |
+| Direct C++ / C ABI parity | 128 session and 128 live packet scenarios | Passed |
+| SDK install/export/manifest/ZIP/SHA | BuildSdk + VerifySdk; separate C11/C++ find_package builds | Passed; final source identity is in the SDK manifest |
+| Core MSVC Debug / Release | clean `3dce71e5` configure/build/CTest | 6/6 in each configuration |
+| Core Clang Debug / Release | clean `3dce71e5` configure/build/CTest | 6/6 in each configuration |
+| ASan + UBSan / structured fuzz | clean `3dce71e5` sanitizer CTest; 100000 structured inputs | Passed |
+| Full 10000 seeds, whole sweep repeated | clean-3dce-property-10000.json | 9600 convergences +400 expected bounded failures; zero identity mismatches/crashes/deadlocks/unbounded failures |
+| UE Automation / lifecycle / fixed-step / isolation / integrity | clean `3dce71e5`, run135450 | 28/28, zero failures; actual PIE and controller tests |
+| Editor build / launch / rendering | PACT83 real RHI and controls; clean `3dce71e5` Editor build135329 | Passed |
+| BuildPlugin Editor Development / Game Development / Game Shipping | run134114 passed; global-mutex contention135501 retained; WaitMutex fix135911 passed all3 | Passed after bounded serialization fix; [investigation](evidence/PACT-84-build-mutex.md) |
+| Win64 BuildCookRun | Development and Shipping; clean `3dce71e5` Shipping run135414 | Passed; clean Shipping cook/build29.04s |
+| Ordinary packaged controls | Shipping run133759, actual pause/move/fire/step/release | Passed; both processes exited |
+| Packaged smoke / actual rollback / confirmed convergence | Shipping run133714 | Passed: confirmed240/240, hash0x4B35DC3FD8F6009C, rollback189 |
+| CLI / C11 / packaged UE | parity/20260904-134325-034-98663f04/verification.json | 16/16 checks: complete report/trace equality and byte-identical replays; explicitly intermediate source |
+| JSON / replay / screenshot inspection | all three Shipping PNGs opened by parent and independent reviewer | Passed; fresh final captures remain mandatory |
+| Failure process codes / watchdog | six Editor and six actual Shipping cases | Every case returned1, false failure JSON, no retained child |
+| Manifest / archive verifier negatives | evidence-tests-20260904-133829-158-2963cacc/results.json | 44/44, including missing/multiple/corrupt SDK ZIP |
+| Log audit | [PACT84](evidence/PACT-84.md) | Project input/compression warnings fixed; stock GPU/preload and metadata-mode diagnostics classified, retained |
+| Documentation / AI attribution | README and the required design/testing/teaching documents, real Shipping preview | 15 required interview answers; 14 UE/C ABI drills; authorship explicit |
+| Fresh independent full review | base...`3dce71e5`; later narrow WaitMutex recheck | No confirmed Blocker/High/directly related low-risk Medium; [audit](evidence/PACT-86-audit.md) |
+| One clean source for final SDK/Plugin/Demo/receipts | automatic source, complete tree, ZIP and process checks | Refresh after the serialization/verification-record commit; never reuse working artifacts as final |
+| Clean pushed feature / Draft PR | final Git/GitHub acceptance | Final delivery step; no merge/tag/release authorized |
+| Optional two-client UDP-UE | PACT85 eligibility gate | Not started while clean P0 acceptance is still being refreshed |
